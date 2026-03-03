@@ -2,8 +2,9 @@
 import { createHmac } from 'crypto';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { AuthToken, User } from '@v3grand/core';
+import { config } from '../config.js';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'v3grand-dev-secret';
+const JWT_SECRET = config.jwtSecret;
 const JWT_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
 
 interface DecodedJWT {

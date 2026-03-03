@@ -2,7 +2,7 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, dealAccess } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, dealAccess, risks } from '../schema/index.js';
 import { v3GrandSeed, V3_GRAND_DEAL_ID } from './v3grand.js';
 import { execSync } from 'child_process';
 import { scryptSync, randomBytes } from 'crypto';
@@ -239,6 +239,8 @@ async function seed() {
     { email: 'co@v3grand.com', name: 'Bob Co', role: 'co-investor' },
     { email: 'ops@v3grand.com', name: 'Charlie Ops', role: 'operator' },
     { email: 'viewer@v3grand.com', name: 'Diana Viewer', role: 'viewer' },
+    { email: 'lp1@v3grand.com', name: 'Ethan LP', role: 'co-investor' },
+    { email: 'lp2@v3grand.com', name: 'Fiona LP', role: 'viewer' },
   ];
 
   for (const user of demoUsers) {
@@ -385,6 +387,109 @@ async function seed() {
       percentComplete: 45,
       dependencies: [],
     });
+  }
+
+  // ── Domain Events table ──
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS domain_events (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      deal_id UUID NOT NULL REFERENCES deals(id),
+      type VARCHAR(100) NOT NULL,
+      payload JSONB NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+      seq_no INTEGER NOT NULL,
+      idempotency_key VARCHAR(255),
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      processed_at TIMESTAMP,
+      UNIQUE(deal_id, seq_no)
+    );
+    CREATE INDEX IF NOT EXISTS de_status_idx ON domain_events(status);
+  `);
+
+  // ── Risks table ──
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS risks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      deal_id UUID NOT NULL REFERENCES deals(id),
+      title VARCHAR(255) NOT NULL,
+      description VARCHAR(2000) NOT NULL,
+      category VARCHAR(50) NOT NULL,
+      likelihood VARCHAR(20) NOT NULL,
+      impact VARCHAR(20) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'open',
+      mitigation VARCHAR(2000),
+      owner VARCHAR(255),
+      created_by VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS risks_deal_idx ON risks(deal_id);
+    CREATE INDEX IF NOT EXISTS risks_status_idx ON risks(status);
+  `);
+
+  // Seed sample risks
+  console.log('Seeding risk register...');
+  const existingRisks = await db.select().from(risks)
+    .where(sql`deal_id = ${V3_GRAND_DEAL_ID}`)
+    .limit(1);
+
+  if (existingRisks.length === 0) {
+    const sampleRisks = [
+      {
+        dealId: V3_GRAND_DEAL_ID,
+        title: 'Construction cost overrun',
+        description: 'Hard costs may exceed budget due to supply chain volatility and labor shortages in the Madurai market.',
+        category: 'construction',
+        likelihood: 'medium',
+        impact: 'high',
+        status: 'open',
+        mitigation: 'Fixed-price contracts for 70% of hard costs; 10% contingency buffer in capex plan.',
+        owner: 'ops@v3grand.com',
+        createdBy: 'lead@v3grand.com',
+      },
+      {
+        dealId: V3_GRAND_DEAL_ID,
+        title: 'ADR growth falls short of projections',
+        description: 'New competing hotel supply in the Madurai micro-market could depress average daily rates below base case.',
+        category: 'market',
+        likelihood: 'medium',
+        impact: 'medium',
+        status: 'open',
+        mitigation: 'Bear scenario models 15% ADR haircut; brand affiliation provides rate floor.',
+        owner: 'lead@v3grand.com',
+        createdBy: 'lead@v3grand.com',
+      },
+      {
+        dealId: V3_GRAND_DEAL_ID,
+        title: 'Interest rate increase on floating debt',
+        description: 'RBI rate hikes could increase debt service costs if floating-rate tranche reprices higher.',
+        category: 'financial',
+        likelihood: 'low',
+        impact: 'medium',
+        status: 'mitigated',
+        mitigation: 'Cap agreement in place for 60% of floating exposure at +150bps.',
+        owner: 'co@v3grand.com',
+        createdBy: 'lead@v3grand.com',
+      },
+      {
+        dealId: V3_GRAND_DEAL_ID,
+        title: 'Environmental clearance delay',
+        description: 'Phase 2 expansion may face delays in state-level environmental approval, extending timeline by 3-6 months.',
+        category: 'regulatory',
+        likelihood: 'low',
+        impact: 'low',
+        status: 'accepted',
+        mitigation: null,
+        owner: 'ops@v3grand.com',
+        createdBy: 'ops@v3grand.com',
+      },
+    ];
+
+    for (const risk of sampleRisks) {
+      await db.insert(risks).values(risk);
+    }
+    console.log(`  Seeded ${sampleRisks.length} sample risks`);
   }
 
   console.log('Seed complete.');

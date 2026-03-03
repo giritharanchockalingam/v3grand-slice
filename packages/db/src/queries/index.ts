@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks } from '../schema/index.js';
 
 type DB = PostgresJsDatabase;
 
@@ -520,4 +520,59 @@ export async function getDeadLetterEvents(db: DB, dealId?: string) {
     ? and(eq(domainEvents.status, 'DEAD_LETTER'), eq(domainEvents.dealId, dealId))
     : eq(domainEvents.status, 'DEAD_LETTER');
   return db.select().from(domainEvents).where(conditions).orderBy(domainEvents.createdAt);
+}
+
+// ── Risks ──
+export async function getRisksByDeal(db: DB, dealId: string) {
+  return db.select().from(risks).where(eq(risks.dealId, dealId)).orderBy(desc(risks.createdAt));
+}
+
+export async function getRiskById(db: DB, riskId: string) {
+  const [row] = await db.select().from(risks).where(eq(risks.id, riskId)).limit(1);
+  return row ?? null;
+}
+
+export async function createRisk(
+  db: DB,
+  data: {
+    dealId: string;
+    title: string;
+    description: string;
+    category: string;
+    likelihood: string;
+    impact: string;
+    mitigation?: string;
+    owner?: string;
+    createdBy: string;
+  }
+) {
+  const [row] = await db.insert(risks).values({
+    ...data,
+    status: 'open',
+  }).returning();
+  return row;
+}
+
+export async function updateRisk(
+  db: DB,
+  riskId: string,
+  updates: Record<string, unknown>
+) {
+  const [updated] = await db.update(risks)
+    .set({ ...updates, updatedAt: new Date() })
+    .where(eq(risks.id, riskId))
+    .returning();
+  return updated;
+}
+
+export async function getRiskSummary(db: DB, dealId: string) {
+  const allRisks = await getRisksByDeal(db, dealId);
+  const open = allRisks.filter(r => r.status === 'open');
+  const highOpen = open.filter(r => r.impact === 'high' || r.likelihood === 'high');
+  return {
+    total: allRisks.length,
+    open: open.length,
+    highPriority: highOpen.length,
+    categories: [...new Set(allRisks.map(r => r.category))],
+  };
 }

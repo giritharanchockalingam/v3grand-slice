@@ -2,7 +2,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDashboard, useRunUnderwriter } from '../../../hooks/use-dashboard';
 import { usePermissions } from '../../../hooks/use-permissions';
 import { RecommendationCard } from '../../../components/dashboard/RecommendationCard';
@@ -11,6 +11,7 @@ import { CashFlowTable } from '../../../components/dashboard/CashFlowTable';
 import { AssumptionEditor } from '../../../components/assumptions/AssumptionEditor';
 import { ScenarioComparison } from '../../../components/scenarios/ScenarioComparison';
 import { ConstructionDashboard } from '../../../components/construction/ConstructionDashboard';
+import { RisksDashboard } from '../../../components/risks/RisksDashboard';
 import { useAuth } from '../../../lib/auth-context';
 
 export default function DealDashboardPage() {
@@ -19,9 +20,32 @@ export default function DealDashboardPage() {
   const { canRecompute, canManageConstruction, canEdit } = usePermissions();
   const { data, isLoading, error } = useDashboard(dealId);
   const underwrite = useRunUnderwriter(dealId);
-  const [tab, setTab] = useState<'dashboard' | 'assumptions' | 'scenarios' | 'construction'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'assumptions' | 'scenarios' | 'construction' | 'risks'>('dashboard');
+  const [toast, setToast] = useState<{ msg: string; type: 'error' | 'success' } | null>(null);
 
   const showConstruction = canManageConstruction || user?.role === 'co-investor';
+
+  // Show toast on recompute error
+  useEffect(() => {
+    if (underwrite.isError) {
+      setToast({ msg: underwrite.error?.message ?? 'Recompute failed', type: 'error' });
+    }
+    if (underwrite.isSuccess) {
+      const result = underwrite.data as any;
+      if (result && result.ok === false) {
+        setToast({ msg: result.error ?? 'Partial engine failure — existing numbers preserved', type: 'error' });
+      } else {
+        setToast({ msg: 'Recompute complete', type: 'success' });
+      }
+    }
+  }, [underwrite.isError, underwrite.isSuccess, underwrite.error, underwrite.data]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   if (isLoading) {
     return (
@@ -68,7 +92,7 @@ export default function DealDashboardPage() {
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700
                        disabled:bg-blue-300 rounded-lg transition-colors"
           >
-            {underwrite.isPending ? 'Recomputing...' : 'Recompute'}
+            {underwrite.isPending ? 'Running Engines...' : '▶ Recompute Recommendation'}
           </button>
         )}
       </div>
@@ -117,7 +141,31 @@ export default function DealDashboardPage() {
             Construction
           </button>
         )}
+        <button
+          onClick={() => setTab('risks')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            tab === 'risks'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Risks
+        </button>
       </div>
+
+      {/* ── Toast Banner ── */}
+      {toast && (
+        <div className={`rounded-lg px-4 py-2 text-sm flex items-center justify-between ${
+          toast.type === 'error'
+            ? 'bg-red-50 border border-red-200 text-red-700'
+            : 'bg-green-50 border border-green-200 text-green-700'
+        }`}>
+          <span>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="ml-3 text-xs font-medium hover:underline">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {tab === 'assumptions' ? (
         <AssumptionEditor dealId={dealId} />
@@ -125,6 +173,8 @@ export default function DealDashboardPage() {
         <ScenarioComparison dealId={dealId} />
       ) : tab === 'construction' ? (
         <ConstructionDashboard dealId={dealId} />
+      ) : tab === 'risks' ? (
+        <RisksDashboard dealId={dealId} />
       ) : (
         <>
           {/* ── Recommendation ── */}

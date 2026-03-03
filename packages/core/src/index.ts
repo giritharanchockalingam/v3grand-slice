@@ -6,3 +6,4 @@ export * from './types/auth.js';
 export * from './types/construction.js';
 export * from './dto/views.js';
 export * from './schemas/assumptions.js';
+export * from './logger.js';

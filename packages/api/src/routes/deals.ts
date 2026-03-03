@@ -2,6 +2,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { DealDashboardView, RecommendationState, ProFormaOutput } from '@v3grand/core';
+import { logger } from '@v3grand/core';
 import {
   getDealById, updateDealAssumptions, updateDealActiveScenario,
   listDeals, listDealsByUser, checkDealAccess,
@@ -69,17 +70,39 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
     });
 
     // Trigger recompute: Underwriter → Decision → persist (all scenarios)
-    const result = await recomputeDeal(db, id, 'assumption.updated', user.userId);
+    try {
+      const result = await recomputeDeal(db, id, 'assumption.updated', user.userId);
 
-    return {
-      message: 'Assumptions updated and engines recomputed',
-      recommendation: result.recommendation,
-      proforma: {
-        irr: result.proforma.irr,
-        npv: result.proforma.npv,
-        equityMultiple: result.proforma.equityMultiple,
-      },
-    };
+      if (!result.ok || !result.proforma) {
+        logger.warn('recompute.partial_failure', { dealId: id, trigger: 'assumption.updated' });
+        return reply.code(207).send({
+          message: 'Assumptions saved but recompute partially failed — prior results preserved',
+          error: result.error,
+          recommendation: result.recommendation,
+          proforma: result.proforma ? {
+            irr: result.proforma.irr,
+            npv: result.proforma.npv,
+            equityMultiple: result.proforma.equityMultiple,
+          } : null,
+        });
+      }
+
+      return {
+        message: 'Assumptions updated and engines recomputed',
+        recommendation: result.recommendation,
+        proforma: {
+          irr: result.proforma.irr,
+          npv: result.proforma.npv,
+          equityMultiple: result.proforma.equityMultiple,
+        },
+      };
+    } catch (err) {
+      logger.error('route.assumptions.recompute_crash', { dealId: id, error: String(err) });
+      return reply.code(500).send({
+        message: 'Assumptions saved but recompute failed',
+        error: 'Engine cascade crashed — prior results preserved',
+      });
+    }
   });
 
   // ── POST /deals/:id/underwrite ──
@@ -90,8 +113,16 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
     const deal = await getDealById(db, id);
     if (!deal) return reply.code(404).send({ error: 'Deal not found' });
 
-    const result = await recomputeDeal(db, id, 'api.manual', user.userId);
-    return result;
+    try {
+      const result = await recomputeDeal(db, id, 'api.manual', user.userId);
+      if (!result.ok) {
+        return reply.code(207).send({ ...result, message: 'Recompute partially failed — prior results preserved' });
+      }
+      return result;
+    } catch (err) {
+      logger.error('route.underwrite.crash', { dealId: id, error: String(err) });
+      return reply.code(500).send({ error: 'Engine cascade crashed', ok: false });
+    }
   });
 
   // ── GET /deals/:id/dashboard ──

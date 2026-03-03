@@ -17,9 +17,10 @@ export function useDashboard(dealId: string) {
 export function useRunUnderwriter(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post(`/deals/${dealId}/underwrite`),
+    mutationFn: () => api.post<{ ok: boolean; error?: string }>(`/deals/${dealId}/underwrite`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'scenarios'] });
     },
   });
 }
@@ -28,9 +29,10 @@ export function useUpdateAssumptions(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: { marketAssumptions?: object; financialAssumptions?: object }) =>
-      api.patch(`/deals/${dealId}/assumptions`, patch),
+      api.patch<{ message: string; error?: string }>(`/deals/${dealId}/assumptions`, patch),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'scenarios'] });
     },
   });
 }

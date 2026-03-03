@@ -11,6 +11,15 @@ const VERDICT_COLORS: Record<string, string> = {
   'DO-NOT-PROCEED':  'bg-red-200 text-red-900 border-red-400',
 };
 
+const GATE_TOOLTIPS: Record<string, string> = {
+  'IRR Gate':        'Checks if projected IRR exceeds the target hurdle rate',
+  'NPV Gate':        'Validates that net present value is positive at WACC',
+  'DSCR Gate':       'Ensures average debt service coverage ratio ≥ 1.25x',
+  'Equity Multiple': 'Confirms equity multiple exceeds the minimum threshold',
+  'Payback Gate':    'Verifies payback period is within acceptable range',
+  'Factor Score':    'Composite score from market, location, and deal quality factors',
+};
+
 interface Props {
   recommendation: RecommendationState | null;
 }
@@ -66,7 +75,7 @@ export function RecommendationCard({ recommendation }: Props) {
       {recommendation.gateResults && (
         <div className="mt-3 grid grid-cols-2 gap-1">
           {(recommendation.gateResults as Array<{ name: string; passed: boolean }>).map((g) => (
-            <div key={g.name} className="flex items-center gap-1 text-xs">
+            <div key={g.name} className="flex items-center gap-1 text-xs" title={GATE_TOOLTIPS[g.name] ?? ''}>
               <span>{g.passed ? '✅' : '❌'}</span>
               <span className={g.passed ? 'text-gray-600' : 'text-red-600'}>{g.name}</span>
             </div>

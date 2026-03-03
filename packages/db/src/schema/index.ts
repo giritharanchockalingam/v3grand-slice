@@ -188,3 +188,23 @@ export const domainEvents = pgTable('domain_events', {
   statusIdx: index('de_status_idx').on(t.status),
   idempotency: uniqueIndex('de_idempotency').on(t.idempotencyKey),
 }));
+
+// ── Risk Register ──
+export const risks = pgTable('risks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dealId: uuid('deal_id').notNull().references(() => deals.id),
+  title: varchar('title', { length: 255 }).notNull(),
+  description: varchar('description', { length: 2000 }).notNull(),
+  category: varchar('category', { length: 50 }).notNull(),        // market | construction | financial | regulatory | operational
+  likelihood: varchar('likelihood', { length: 20 }).notNull(),     // low | medium | high
+  impact: varchar('impact', { length: 20 }).notNull(),             // low | medium | high
+  status: varchar('status', { length: 20 }).notNull().default('open'),  // open | mitigated | accepted | closed
+  mitigation: varchar('mitigation', { length: 2000 }),
+  owner: varchar('owner', { length: 255 }),
+  createdBy: varchar('created_by', { length: 255 }).notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  dealIdx: index('risks_deal_idx').on(t.dealId),
+  statusIdx: index('risks_status_idx').on(t.status),
+}));

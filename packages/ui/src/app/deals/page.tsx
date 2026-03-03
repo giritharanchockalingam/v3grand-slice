@@ -45,11 +45,22 @@ export default function DealsPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto py-8 px-4">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Deals</h1>
-          <span className="text-sm text-gray-500">
-            Logged in as <strong>{user?.name}</strong>
-            <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">{user?.role}</span>
-          </span>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">My Deals</h1>
+            <p className="text-sm text-gray-500 mt-1">{deals.length} deal{deals.length !== 1 ? 's' : ''} you have access to</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">
+              <strong>{user?.name}</strong>
+              <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">{user?.role}</span>
+            </span>
+            <button
+              onClick={() => { sessionStorage.removeItem('v3grand-auth'); router.push('/login'); }}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
+              Log out
+            </button>
+          </div>
         </div>
 
         {error && (

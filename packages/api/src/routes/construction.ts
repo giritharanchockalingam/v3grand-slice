@@ -1,6 +1,7 @@
 // ─── Construction Management Routes
 import type { FastifyInstance } from 'fastify';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { logger } from '@v3grand/core';
 import { getDealById, getBudgetLinesByDeal, createBudgetLine, updateBudgetLine, getChangeOrdersByDeal, createChangeOrder, approveChangeOrder, getChangeOrderById, getRFIsByDeal, createRFI, answerRFI, getRFIById, getMilestonesByDeal, createMilestone, updateMilestone, getMilestoneById, getConstructionSummary, insertAuditEntry } from '@v3grand/db';
 import { authGuard, attachUser } from '../middleware/auth.js';
 import { recomputeDeal } from '../services/recompute.js';
@@ -99,7 +100,12 @@ export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDat
     });
 
     // Trigger recompute after budget change
-    await recomputeDeal(db, id, 'change-order.approved', user.userId);
+    try {
+      await recomputeDeal(db, id, 'change-order.approved', user.userId);
+    } catch (err) {
+      logger.error('construction.recompute_after_co.failed', { dealId: id, error: String(err) });
+      // CO is already approved — don't fail the request, just log
+    }
 
     return co;
   });

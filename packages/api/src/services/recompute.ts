@@ -7,6 +7,7 @@ import type {
   Deal, ProFormaOutput, RecommendationState,
   FactorScoreOutput, MCOutput, BudgetAnalysisOutput,
 } from '@v3grand/core';
+import { logger } from '@v3grand/core';
 import {
   buildProForma, evaluateDecision,
   scoreFactors, runMonteCarlo, analyzeBudget, distributeSCurve,
@@ -18,13 +19,15 @@ import {
 } from '@v3grand/db';
 
 export interface RecomputeResult {
-  proforma: ProFormaOutput;
+  ok: boolean;               // false when cascade partially or fully failed
+  error?: string;            // human-readable error when ok=false
+  proforma: ProFormaOutput | null;
   recommendation: {
     verdict: string;
     confidence: number;
     explanation: string;
     isFlip: boolean;
-  };
+  } | null;
   factorResult?: FactorScoreOutput;
   mcResult?: MCOutput;
   budgetResult?: BudgetAnalysisOutput;
@@ -58,9 +61,16 @@ export async function recomputeDeal(
   trigger: string,          // e.g. "assumption.updated" or "api.manual"
   userId = 'system',
 ): Promise<RecomputeResult> {
+  const cascadeStart = Date.now();
+  const ctx = { dealId, trigger, userId };
+  logger.info('recompute.start', ctx);
+
   // 1. Load current deal
   const dealRow = await getDealById(db, dealId);
-  if (!dealRow) throw new Error(`Deal ${dealId} not found`);
+  if (!dealRow) {
+    logger.error('recompute.deal_not_found', ctx);
+    return { ok: false, error: `Deal ${dealId} not found`, proforma: null, recommendation: null };
+  }
   const deal = reconstituteDeal(dealRow);
 
   // ── 2. Factor Engine (deal-level, not per-scenario) ──
@@ -69,6 +79,7 @@ export async function recomputeDeal(
     const t0 = Date.now();
     factorResult = scoreFactors({ deal });
     const duration = Date.now() - t0;
+    logger.info('engine.factor.done', { ...ctx, durationMs: duration, compositeScore: factorResult.compositeScore });
 
     await insertEngineResult(db, {
       dealId, engineName: 'factor',
@@ -85,19 +96,22 @@ export async function recomputeDeal(
       diff: { compositeScore: factorResult.compositeScore, requiredReturn: factorResult.requiredReturn },
     });
   } catch (err) {
-    console.error(`[recompute] Factor engine failed for deal ${dealId}:`, err);
+    logger.error('engine.factor.failed', { ...ctx, error: String(err) });
   }
 
   // ── 3. Underwriter + Decision per scenario ──
   const scenarios: Array<'bear' | 'base' | 'bull'> = ['bear', 'base', 'bull'];
   let baseProforma: ProFormaOutput | null = null;
   let baseRecommendation: any = null;
+  let scenarioErrors = 0;
 
   for (const scenarioKey of scenarios) {
+   try {
     // Run Underwriter
     const t0 = Date.now();
     const proforma = buildProForma({ deal, scenarioKey });
     const uwDuration = Date.now() - t0;
+    logger.info('engine.underwriter.done', { ...ctx, scenario: scenarioKey, durationMs: uwDuration, irr: proforma.irr });
 
     await insertEngineResult(db, {
       dealId, engineName: 'underwriter', scenarioKey,
@@ -179,6 +193,10 @@ export async function recomputeDeal(
       entityId: dealId,
       diff: { scenarioKey, verdict: decision.verdict, confidence: decision.confidence },
     });
+   } catch (err) {
+    scenarioErrors++;
+    logger.error('engine.scenario.failed', { ...ctx, scenario: scenarioKey, error: String(err) });
+   }
   }
 
   // ── 4. Monte Carlo (deal-level, uses base scenario params) ──
@@ -187,6 +205,7 @@ export async function recomputeDeal(
     const t0 = Date.now();
     mcResult = runMonteCarlo({ deal, iterations: 5000 });
     const duration = Date.now() - t0;
+    logger.info('engine.montecarlo.done', { ...ctx, durationMs: duration, irrP50: mcResult.irrDistribution.p50 });
 
     await insertEngineResult(db, {
       dealId, engineName: 'montecarlo',
@@ -207,7 +226,7 @@ export async function recomputeDeal(
       },
     });
   } catch (err) {
-    console.error(`[recompute] Monte Carlo engine failed for deal ${dealId}:`, err);
+    logger.error('engine.montecarlo.failed', { ...ctx, error: String(err) });
   }
 
   // ── 5. Budget Variance (only during construction phase) ──
@@ -287,6 +306,7 @@ export async function recomputeDeal(
         asOfMonth: deal.currentMonth,
       });
       const duration = Date.now() - t0;
+      logger.info('engine.budget.done', { ...ctx, durationMs: duration, status: budgetResult.overallStatus });
 
       await insertEngineResult(db, {
         dealId, engineName: 'budget',
@@ -307,7 +327,7 @@ export async function recomputeDeal(
         },
       });
     } catch (err) {
-      console.error(`[recompute] Budget engine failed for deal ${dealId}:`, err);
+      logger.error('engine.budget.failed', { ...ctx, error: String(err) });
     }
   }
 
@@ -335,7 +355,7 @@ export async function recomputeDeal(
         triggeredBy: trigger,
       });
     } catch (err) {
-      console.error(`[recompute] S-Curve engine failed for deal ${dealId}:`, err);
+      logger.error('engine.scurve.failed', { ...ctx, error: String(err) });
     }
   }
 
@@ -387,18 +407,25 @@ export async function recomputeDeal(
 
       baseRecommendation = fullDecision;
     } catch (err) {
-      console.error(`[recompute] Enriched decision failed for deal ${dealId}:`, err);
+      logger.error('engine.enriched_decision.failed', { ...ctx, error: String(err) });
     }
   }
 
+  // ── Final result with null guards ──
+  const totalDuration = Date.now() - cascadeStart;
+  const ok = baseProforma !== null && baseRecommendation !== null && scenarioErrors === 0;
+  logger.info('recompute.done', { ...ctx, durationMs: totalDuration, ok, scenarioErrors });
+
   return {
-    proforma: baseProforma!,
-    recommendation: {
+    ok,
+    error: ok ? undefined : 'One or more engines failed during recompute — existing results preserved',
+    proforma: baseProforma,
+    recommendation: baseRecommendation ? {
       verdict: baseRecommendation.verdict,
       confidence: baseRecommendation.confidence,
       explanation: baseRecommendation.explanation,
       isFlip: baseRecommendation.isFlip,
-    },
+    } : null,
     factorResult: factorResult ?? undefined,
     mcResult: mcResult ?? undefined,
     budgetResult: budgetResult ?? undefined,
