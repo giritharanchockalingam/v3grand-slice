@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess } from '../schema/index.js';
 
 type DB = PostgresJsDatabase;
 
@@ -19,6 +19,14 @@ export async function updateDealAssumptions(
   if (patch.marketAssumptions) updates.marketAssumptions = patch.marketAssumptions;
   if (patch.financialAssumptions) updates.financialAssumptions = patch.financialAssumptions;
   const [updated] = await db.update(deals).set(updates).where(eq(deals.id, dealId)).returning();
+  return updated;
+}
+
+export async function updateDealActiveScenario(db: DB, dealId: string, scenarioKey: string) {
+  const [updated] = await db.update(deals)
+    .set({ activeScenarioKey: scenarioKey, updatedAt: new Date() })
+    .where(eq(deals.id, dealId))
+    .returning();
   return updated;
 }
 
@@ -147,6 +155,62 @@ export async function listDeals(db: DB) {
   }).from(deals).orderBy(desc(deals.updatedAt));
 }
 
+// ── Deal Access ──
+export async function listDealsByUser(db: DB, userId: string) {
+  // Get all deal IDs this user has access to
+  const accessRows = await db.select({ dealId: dealAccess.dealId, role: dealAccess.role })
+    .from(dealAccess)
+    .where(eq(dealAccess.userId, userId));
+
+  if (accessRows.length === 0) return [];
+
+  const dealIds = accessRows.map(r => r.dealId);
+  const roleMap = Object.fromEntries(accessRows.map(r => [r.dealId, r.role]));
+
+  const dealRows = await db.select({
+    id: deals.id,
+    name: deals.name,
+    assetClass: deals.assetClass,
+    status: deals.status,
+    lifecyclePhase: deals.lifecyclePhase,
+    updatedAt: deals.updatedAt,
+  }).from(deals)
+    .where(inArray(deals.id, dealIds))
+    .orderBy(desc(deals.updatedAt));
+
+  return dealRows.map(d => ({ ...d, userRole: roleMap[d.id] ?? 'viewer' }));
+}
+
+export async function checkDealAccess(db: DB, userId: string, dealId: string) {
+  const [row] = await db.select()
+    .from(dealAccess)
+    .where(and(eq(dealAccess.userId, userId), eq(dealAccess.dealId, dealId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function grantDealAccess(db: DB, data: { userId: string; dealId: string; role: string }) {
+  const [inserted] = await db.insert(dealAccess).values(data)
+    .onConflictDoUpdate({
+      target: [dealAccess.userId, dealAccess.dealId],
+      set: { role: data.role },
+    })
+    .returning();
+  return inserted;
+}
+
+export async function getDealAccessByDeal(db: DB, dealId: string) {
+  return db.select({
+    id: dealAccess.id,
+    userId: dealAccess.userId,
+    role: dealAccess.role,
+    userName: users.name,
+    userEmail: users.email,
+  }).from(dealAccess)
+    .innerJoin(users, eq(dealAccess.userId, users.id))
+    .where(eq(dealAccess.dealId, dealId));
+}
+
 // ── Scenario-aware engine results ──
 export async function getLatestEngineResultByScenario(
   db: DB,
@@ -264,7 +328,7 @@ export async function createChangeOrder(
   const [co] = await db.insert(changeOrders).values({
     ...data,
     amount: String(data.amount),
-    status: 'draft',
+    status: 'submitted',
   }).returning();
   return co;
 }

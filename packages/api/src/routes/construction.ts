@@ -8,7 +8,7 @@ import { recomputeDeal } from '../services/recompute.js';
 export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
 
   // ── GET /deals/:id/construction/dashboard ──
-  app.get<{ Params: { id: string } }>('/deals/:id/construction/dashboard', { preHandler: attachUser }, async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/deals/:id/construction/dashboard', { preHandler: authGuard }, async (req, reply) => {
     const { id } = req.params;
     const deal = await getDealById(db, id);
     if (!deal) return reply.code(404).send({ error: 'Deal not found' });
@@ -74,6 +74,8 @@ export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDat
 
     const existing = await getChangeOrderById(db, coId);
     if (!existing) return reply.code(404).send({ error: 'Change order not found' });
+    if (existing.status === 'approved') return reply.code(400).send({ error: 'Change order already approved' });
+    if (existing.status === 'rejected') return reply.code(400).send({ error: 'Change order was rejected' });
 
     const co = await approveChangeOrder(db, coId, user.email ?? user.userId);
 

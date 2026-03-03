@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useConstruction, useApproveChangeOrder, useCreateChangeOrder, useCreateRFI } from '../../hooks/use-construction';
+import { usePermissions } from '../../hooks/use-permissions';
 
 function fmt(v: number): string {
   if (Math.abs(v) >= 1_00_00_000) return (v / 1_00_00_000).toFixed(2) + ' Cr';
@@ -98,12 +99,110 @@ function BudgetLinesTable({ lines }: { lines: any[] }) {
   );
 }
 
-function ChangeOrdersList({ orders, dealId }: { orders: any[]; dealId: string }) {
+function ChangeOrdersList({ orders, dealId, budgetLines }: { orders: any[]; dealId: string; budgetLines: any[] }) {
   const approve = useApproveChangeOrder(dealId);
+  const create = useCreateChangeOrder(dealId);
+  const { canApprove, canCreateCO } = usePermissions();
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ budgetLineId: '', title: '', description: '', amount: '' });
 
-  if (!orders.length) return <p className="text-sm text-gray-400">No change orders.</p>;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.budgetLineId || !formData.title || !formData.amount) return;
+    await create.mutateAsync({
+      budgetLineId: formData.budgetLineId,
+      title: formData.title,
+      description: formData.description,
+      amount: parseFloat(formData.amount),
+    });
+    setFormData({ budgetLineId: '', title: '', description: '', amount: '' });
+    setShowForm(false);
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {canCreateCO && (
+        <div className="mb-4">
+          {!showForm ? (
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              + New Change Order
+            </button>
+          ) : (
+            <form onSubmit={handleSubmit} className="bg-white border border-blue-200 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700">New Change Order</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Budget Line</label>
+                  <select
+                    value={formData.budgetLineId}
+                    onChange={(e) => setFormData(f => ({ ...f, budgetLineId: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    required
+                  >
+                    <option value="">Select...</option>
+                    {budgetLines.map((bl: any) => (
+                      <option key={bl.id} value={bl.id}>{bl.costCode} — {bl.description}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Amount (₹)</label>
+                  <input
+                    type="number"
+                    value={formData.amount}
+                    onChange={(e) => setFormData(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    required
+                    placeholder="e.g. 500000"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(f => ({ ...f, title: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                  required
+                  placeholder="e.g. Additional MEP scope"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                  rows={2}
+                  placeholder="Describe the change order..."
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {create.isPending ? 'Submitting...' : 'Submit CO'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {orders.length === 0 && <p className="text-sm text-gray-400">No change orders.</p>}
       {orders.map((co) => (
         <div key={co.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-start justify-between">
           <div className="flex-1">
@@ -116,12 +215,12 @@ function ChangeOrdersList({ orders, dealId }: { orders: any[]; dealId: string })
             <div className="text-sm font-medium">{co.title}</div>
             <div className="text-xs text-gray-500 mt-1">{co.description}</div>
             <div className="text-xs text-gray-400 mt-1">
-              Amount: <span className={co.amount > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>{fmt(co.amount)}</span>
+              Amount: <span className={co.amount > 0 ? 'text-red-600 font-medium' : 'text-green-600 font-medium'}>{fmt(typeof co.amount === 'string' ? parseFloat(co.amount) : co.amount)}</span>
               {' · '}Requested by: {co.requestedBy}
               {co.approvedBy && <> · Approved by: {co.approvedBy}</>}
             </div>
           </div>
-          {co.status === 'submitted' && (
+          {(co.status === 'submitted' || co.status === 'draft') && canApprove && (
             <button
               onClick={() => approve.mutate(co.id)}
               disabled={approve.isPending}
@@ -176,10 +275,78 @@ function MilestonesTimeline({ milestones }: { milestones: any[] }) {
   );
 }
 
-function RFIsList({ rfis }: { rfis: any[] }) {
-  if (!rfis.length) return <p className="text-sm text-gray-400">No RFIs.</p>;
+function RFIsList({ rfis, dealId }: { rfis: any[]; dealId: string }) {
+  const create = useCreateRFI(dealId);
+  const { canCreateRFI } = usePermissions();
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({ subject: '', question: '' });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.subject || !formData.question) return;
+    await create.mutateAsync(formData);
+    setFormData({ subject: '', question: '' });
+    setShowForm(false);
+  };
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {canCreateRFI && (
+        <div className="mb-4">
+          {!showForm ? (
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              + New RFI
+            </button>
+          ) : (
+            <form onSubmit={handleSubmit} className="bg-white border border-blue-200 rounded-lg p-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700">New RFI</h4>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={formData.subject}
+                  onChange={(e) => setFormData(f => ({ ...f, subject: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                  required
+                  placeholder="e.g. Structural reinforcement clarification"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Question</label>
+                <textarea
+                  value={formData.question}
+                  onChange={(e) => setFormData(f => ({ ...f, question: e.target.value }))}
+                  className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                  rows={3}
+                  required
+                  placeholder="Describe your question..."
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={create.isPending}
+                  className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {create.isPending ? 'Submitting...' : 'Submit RFI'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {rfis.length === 0 && <p className="text-sm text-gray-400">No RFIs.</p>}
       {rfis.map((rfi) => (
         <div key={rfi.id} className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -251,9 +418,9 @@ export function ConstructionDashboard({ dealId }: { dealId: string }) {
       {/* Section Content */}
       <div>
         {activeSection === 'budget' && <BudgetLinesTable lines={budgetLines} />}
-        {activeSection === 'cos' && <ChangeOrdersList orders={changeOrders} dealId={dealId} />}
+        {activeSection === 'cos' && <ChangeOrdersList orders={changeOrders} dealId={dealId} budgetLines={budgetLines} />}
         {activeSection === 'milestones' && <MilestonesTimeline milestones={milestones} />}
-        {activeSection === 'rfis' && <RFIsList rfis={rfis} />}
+        {activeSection === 'rfis' && <RFIsList rfis={rfis} dealId={dealId} />}
       </div>
     </div>
   );

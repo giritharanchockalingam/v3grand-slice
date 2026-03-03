@@ -37,7 +37,7 @@ function ScenarioCard({
 }) {
   const colors = SCENARIO_COLORS[scenarioKey] ?? SCENARIO_COLORS.base;
 
-  if (!result) {
+  if (!result || !result.proforma || !result.decision) {
     return (
       <div className={`rounded-lg border-2 ${colors.border} ${colors.bg} p-5 opacity-50`}>
         <div className="flex items-center justify-between mb-4">
@@ -143,7 +143,7 @@ export function ScenarioComparison({ dealId }: { dealId: string }) {
       </div>
 
       {/* Comparison Table */}
-      {scenarios.base && scenarios.bear && scenarios.bull && (
+      {scenarios.base?.proforma && scenarios.bear?.proforma && scenarios.bull?.proforma && (
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Year-by-Year Revenue Comparison (Cr)</h3>
           <div className="overflow-x-auto">
@@ -161,9 +161,9 @@ export function ScenarioComparison({ dealId }: { dealId: string }) {
               </thead>
               <tbody>
                 {scenarios.base.proforma.years.map((_, i) => {
-                  const bear = scenarios.bear!.proforma.years[i];
-                  const base = scenarios.base!.proforma.years[i];
-                  const bull = scenarios.bull!.proforma.years[i];
+                  const bear = scenarios.bear!.proforma!.years[i];
+                  const base = scenarios.base!.proforma!.years[i];
+                  const bull = scenarios.bull!.proforma!.years[i];
                   return (
                     <tr key={i} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-3 py-1.5 font-medium">{i + 1}</td>

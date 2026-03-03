@@ -2,7 +2,7 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, dealAccess } from '../schema/index.js';
 import { v3GrandSeed, V3_GRAND_DEAL_ID } from './v3grand.js';
 import { execSync } from 'child_process';
 import { scryptSync, randomBytes } from 'crypto';
@@ -89,6 +89,20 @@ async function seed() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
+  `);
+
+  // Deal Access table
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS deal_access (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID NOT NULL REFERENCES users(id),
+      deal_id UUID NOT NULL REFERENCES deals(id),
+      role VARCHAR(50) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      UNIQUE(user_id, deal_id)
+    );
+    CREATE INDEX IF NOT EXISTS da_deal_idx ON deal_access(deal_id);
+    CREATE INDEX IF NOT EXISTS da_user_idx ON deal_access(user_id);
   `);
 
   await db.execute(sql`
@@ -252,6 +266,23 @@ async function seed() {
   }
 
   console.log(`Seeded deal: ${v3GrandSeed.name} (${V3_GRAND_DEAL_ID})`);
+
+  // Grant all demo users access to the V3 Grand deal
+  console.log('Granting deal access...');
+  const allUsers = await db.select().from(users);
+  for (const u of allUsers) {
+    const existingAccess = await db.select().from(dealAccess)
+      .where(sql`user_id = ${u.id} AND deal_id = ${V3_GRAND_DEAL_ID}`)
+      .limit(1);
+    if (existingAccess.length === 0) {
+      await db.insert(dealAccess).values({
+        userId: u.id,
+        dealId: V3_GRAND_DEAL_ID,
+        role: u.role,
+      });
+      console.log(`  Granted ${u.role} access to ${u.email}`);
+    }
+  }
 
   // Run initial underwrite for all scenarios
   const { buildProForma } = await import('../../../engines/src/underwriter/index.js');

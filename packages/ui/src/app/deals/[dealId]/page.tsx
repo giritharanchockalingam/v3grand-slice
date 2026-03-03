@@ -4,6 +4,7 @@
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
 import { useDashboard, useRunUnderwriter } from '../../../hooks/use-dashboard';
+import { usePermissions } from '../../../hooks/use-permissions';
 import { RecommendationCard } from '../../../components/dashboard/RecommendationCard';
 import { MetricsStrip } from '../../../components/dashboard/MetricsStrip';
 import { CashFlowTable } from '../../../components/dashboard/CashFlowTable';
@@ -15,11 +16,12 @@ import { useAuth } from '../../../lib/auth-context';
 export default function DealDashboardPage() {
   const { dealId } = useParams<{ dealId: string }>();
   const { user } = useAuth();
+  const { canRecompute, canManageConstruction, canEdit } = usePermissions();
   const { data, isLoading, error } = useDashboard(dealId);
   const underwrite = useRunUnderwriter(dealId);
   const [tab, setTab] = useState<'dashboard' | 'assumptions' | 'scenarios' | 'construction'>('dashboard');
 
-  const canRecompute = ['lead-investor', 'co-investor', 'operator'].includes(user?.role || '');
+  const showConstruction = canManageConstruction || user?.role === 'co-investor';
 
   if (isLoading) {
     return (
@@ -103,7 +105,7 @@ export default function DealDashboardPage() {
         >
           Scenarios
         </button>
-        {user?.role === 'operator' && (
+        {showConstruction && (
           <button
             onClick={() => setTab('construction')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${

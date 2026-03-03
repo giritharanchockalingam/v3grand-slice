@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../lib/api-client';
 
 interface DealSummary {
   id: string;
@@ -12,49 +14,24 @@ interface DealSummary {
   status: string;
   lifecyclePhase: string;
   updatedAt: string;
+  userRole?: string;
 }
 
 export default function DealsPage() {
   const router = useRouter();
-  const { user, token, loading } = useAuth();
-  const [deals, setDeals] = useState<DealSummary[]>([]);
-  const [dealsLoading, setDealsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { user, loading } = useAuth();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
+  const { data: deals = [], isLoading: dealsLoading, error } = useQuery<DealSummary[]>({
+    queryKey: ['deals'],
+    queryFn: () => api.get('/deals'),
+    enabled: !!user,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    if (!token) return;
-
-    const fetchDeals = async () => {
-      try {
-        const res = await fetch('/api/deals', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) {
-          setError('Failed to load deals');
-          return;
-        }
-
-        const data = await res.json();
-        setDeals(data);
-      } catch (err) {
-        console.error('Error fetching deals:', err);
-        setError('Error loading deals');
-      } finally {
-        setDealsLoading(false);
-      }
-    };
-
-    fetchDeals();
-  }, [token]);
+  if (!loading && !user) {
+    router.push('/login');
+    return null;
+  }
 
   if (loading || dealsLoading) {
     return (
@@ -67,17 +44,23 @@ export default function DealsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto py-8 px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Deals</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Deals</h1>
+          <span className="text-sm text-gray-500">
+            Logged in as <strong>{user?.name}</strong>
+            <span className="ml-2 px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">{user?.role}</span>
+          </span>
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6 text-red-600">
-            {error}
+            {(error as Error).message}
           </div>
         )}
 
         {deals.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center text-gray-600">
-            No deals found. Contact an administrator to create a new deal.
+            No deals found. Contact an administrator to grant access.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -94,6 +77,13 @@ export default function DealsPage() {
                   <p><span className="font-medium">Phase:</span> {deal.lifecyclePhase}</p>
                   <p><span className="font-medium">Updated:</span> {new Date(deal.updatedAt).toLocaleDateString()}</p>
                 </div>
+                {deal.userRole && (
+                  <div className="mb-3">
+                    <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                      Your role: {deal.userRole}
+                    </span>
+                  </div>
+                )}
                 <div className="pt-4 border-t border-gray-200">
                   <span className="text-indigo-600 font-medium hover:text-indigo-700">
                     View Dashboard →

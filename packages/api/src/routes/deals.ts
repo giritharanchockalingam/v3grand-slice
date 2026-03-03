@@ -3,7 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { DealDashboardView, RecommendationState, ProFormaOutput } from '@v3grand/core';
 import {
-  getDealById, updateDealAssumptions, listDeals,
+  getDealById, updateDealAssumptions, updateDealActiveScenario,
+  listDeals, listDealsByUser, checkDealAccess,
   getLatestEngineResult, getLatestRecommendation, getRecentAudit,
   getLatestEngineResultByScenario, getScenarioResults, getScenarioRecommendations,
   insertAuditEntry, getConstructionSummary,
@@ -15,14 +16,19 @@ import { authGuard, attachUser } from '../middleware/auth.js';
 
 export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
 
-  // ── GET /deals ── (list all deals)
-  app.get('/deals', { preHandler: attachUser }, async (req, reply) => {
-    const deals = await listDeals(db);
+  // ── GET /deals ── (list deals this user has access to)
+  app.get('/deals', { preHandler: authGuard }, async (req, reply) => {
+    const user = (req as any).user;
+    const deals = await listDealsByUser(db, user.userId);
     return deals;
   });
 
-  // ── GET /deals/:id ──
-  app.get<{ Params: { id: string } }>('/deals/:id', { preHandler: attachUser }, async (req, reply) => {
+  // ── GET /deals/:id ── (with access check)
+  app.get<{ Params: { id: string } }>('/deals/:id', { preHandler: authGuard }, async (req, reply) => {
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, req.params.id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+
     const deal = await getDealById(db, req.params.id);
     if (!deal) return reply.code(404).send({ error: 'Deal not found' });
     return deal;
@@ -90,7 +96,7 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
 
   // ── GET /deals/:id/dashboard ──
   // Aggregated view for the Deal Dashboard screen (base scenario).
-  app.get<{ Params: { id: string } }>('/deals/:id/dashboard', { preHandler: attachUser }, async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/deals/:id/dashboard', { preHandler: authGuard }, async (req, reply) => {
     const { id } = req.params;
     const dealRow = await getDealById(db, id);
     if (!dealRow) return reply.code(404).send({ error: 'Deal not found' });
@@ -163,7 +169,7 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
 
   // ── GET /deals/:id/scenarios ──
   // Returns all 3 scenario results (bear, base, bull)
-  app.get<{ Params: { id: string } }>('/deals/:id/scenarios', { preHandler: attachUser }, async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/deals/:id/scenarios', { preHandler: authGuard }, async (req, reply) => {
     const { id } = req.params;
     const dealRow = await getDealById(db, id);
     if (!dealRow) return reply.code(404).send({ error: 'Deal not found' });
@@ -195,17 +201,24 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
       : null;
 
     return {
-      bear: {
-        proforma: formatProforma(uwResults.bear),
-        recommendation: formatRecommendation(recResults.bear),
-      },
-      base: {
-        proforma: formatProforma(uwResults.base),
-        recommendation: formatRecommendation(recResults.base),
-      },
-      bull: {
-        proforma: formatProforma(uwResults.bull),
-        recommendation: formatRecommendation(recResults.bull),
+      dealId: id,
+      activeScenario: dealRow.activeScenarioKey,
+      scenarios: {
+        bear: {
+          scenarioKey: 'bear',
+          proforma: formatProforma(uwResults.bear),
+          recommendation: formatRecommendation(recResults.bear),
+        },
+        base: {
+          scenarioKey: 'base',
+          proforma: formatProforma(uwResults.base),
+          recommendation: formatRecommendation(recResults.base),
+        },
+        bull: {
+          scenarioKey: 'bull',
+          proforma: formatProforma(uwResults.bull),
+          recommendation: formatRecommendation(recResults.bull),
+        },
       },
     };
   });
@@ -223,7 +236,7 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
     const deal = await getDealById(db, id);
     if (!deal) return reply.code(404).send({ error: 'Deal not found' });
 
-    const updated = await updateDealAssumptions(db, id, {});
+    await updateDealActiveScenario(db, id, scenarioKey);
     
     await insertAuditEntry(db, {
       dealId: id,

@@ -1,0 +1,29 @@
+feat: implement v0 slices - auth+roles, scenario comparison, construction CO->recompute
+
+Slice 1 - Auth + Roles + Multi-Deal Navigation:
+- Add deal_access table (per-user, per-deal role mapping)
+- Add listDealsByUser, checkDealAccess, grantDealAccess queries
+- All API routes now require authGuard (no more unauthenticated access)
+- GET /deals filters by user deal_access entries
+- Fix api-client.ts to inject Bearer token from sessionStorage
+- Fix auth-context.tsx login URL to hit API server directly
+- Add usePermissions hook for role-based UI guards
+- Add AuthGuard component
+- Deals list shows user role per deal, uses React Query
+- Construction tab visible for lead-investor + operator (not just operator)
+- Seed creates deal_access entries for all demo users
+
+Slice 2 - Scenario Comparison:
+- Fix PATCH /deals/:id/active-scenario to actually update activeScenarioKey column
+- Add updateDealActiveScenario query
+- GET /deals/:id/scenarios returns { dealId, activeScenario, scenarios }
+- useScenarios hook transforms API response (recommendation to decision mapping)
+- ScenarioComparison handles null proforma/decision gracefully
+
+Slice 3 - Construction + CO->Recompute:
+- CO creation now uses submitted status (approve button works immediately)
+- Approve route validates CO status (prevents double-approve)
+- Add ChangeOrder creation form (select budget line, amount, title, description)
+- Add RFI creation form (subject, question)
+- Forms gated by role (operator can create COs/RFIs, lead-investor can approve)
+- CO approve -> budget line update -> full engine recompute cascade

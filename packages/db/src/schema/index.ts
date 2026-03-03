@@ -11,6 +11,19 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+// ── Deal Access (per-user, per-deal role mapping) ──
+export const dealAccess = pgTable('deal_access', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  dealId: uuid('deal_id').notNull().references(() => deals.id),
+  role: varchar('role', { length: 50 }).notNull(), // role on this specific deal
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  uniqueUserDeal: uniqueIndex('da_user_deal').on(t.userId, t.dealId),
+  dealIdx: index('da_deal_idx').on(t.dealId),
+  userIdx: index('da_user_idx').on(t.userId),
+}));
+
 // ── Deals ──
 export const deals = pgTable('deals', {
   id:                  uuid('id').primaryKey().defaultRandom(),

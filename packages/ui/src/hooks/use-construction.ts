@@ -1,6 +1,6 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api-client.js';
+import { api } from '../lib/api-client';
 
 export interface BudgetLine {
   id: string; costCode: string; description: string; category: string;

@@ -1,6 +1,6 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api-client.js';
+import { api } from '../lib/api-client';
 
 export interface ScenarioResult {
   scenarioKey: string;
@@ -18,13 +18,13 @@ export interface ScenarioResult {
       totalRevenue: number; gop: number; gopMargin: number;
       ebitda: number; ebitdaMargin: number; debtService: number; fcfe: number;
     }>;
-  };
+  } | null;
   decision: {
     verdict: string;
     confidence: number;
     gateResults: Array<{ name: string; passed: boolean; actual: number; threshold: number }>;
     explanation: string;
-  };
+  } | null;
 }
 
 export interface ScenariosResponse {
@@ -37,10 +37,40 @@ export interface ScenariosResponse {
   };
 }
 
+// Transform the API response into the expected shape
+function transformResponse(raw: any): ScenariosResponse {
+  const transform = (s: any): ScenarioResult | null => {
+    if (!s) return null;
+    return {
+      scenarioKey: s.scenarioKey ?? '',
+      proforma: s.proforma ?? null,
+      decision: s.recommendation ? {
+        verdict: s.recommendation.verdict,
+        confidence: s.recommendation.confidence,
+        gateResults: s.recommendation.gateResults ?? [],
+        explanation: s.recommendation.explanation,
+      } : null,
+    };
+  };
+
+  return {
+    dealId: raw.dealId,
+    activeScenario: raw.activeScenario ?? 'base',
+    scenarios: {
+      bear: transform(raw.scenarios?.bear ?? raw.bear),
+      base: transform(raw.scenarios?.base ?? raw.base),
+      bull: transform(raw.scenarios?.bull ?? raw.bull),
+    },
+  };
+}
+
 export function useScenarios(dealId: string) {
   return useQuery<ScenariosResponse>({
     queryKey: ['deals', dealId, 'scenarios'],
-    queryFn: () => api.get(`/deals/${dealId}/scenarios`),
+    queryFn: async () => {
+      const raw = await api.get(`/deals/${dealId}/scenarios`);
+      return transformResponse(raw);
+    },
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
