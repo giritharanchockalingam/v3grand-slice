@@ -1,0 +1,23 @@
+{
+  "name": "@v3grand/db",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@v3grand/core": "workspace:*",
+    "drizzle-orm": "^0.33.0",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.24.0",
+    "tsx": "^4.19.0"
+  },
+  "scripts": {
+    "seed": "tsx src/seed/run.ts",
+    "migrate": "tsx src/migrate.ts"
+  }
+}
