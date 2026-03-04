@@ -1,5 +1,6 @@
 {
   "buildCommand": "echo 'no build needed'",
+  "outputDirectory": ".",
   "installCommand": "pnpm install",
   "framework": null,
   "functions": {
