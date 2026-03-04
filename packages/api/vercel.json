@@ -1,6 +1,6 @@
 {
   "buildCommand": "echo 'no build needed'",
-  "installCommand": "pnpm install",
+  "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": null,
   "functions": {
     "api/index.ts": {
