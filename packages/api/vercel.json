@@ -1,14 +1,9 @@
 {
-  "installCommand": "cd ../.. && pnpm install",
-  "buildCommand": "node scripts/build-vercel.mjs",
-  "outputDirectory": ".",
-  "framework": null,
-  "functions": {
-    "api/index.mjs": {
-      "maxDuration": 30
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ]
+    "installCommand": "cd ../.. && pnpm install",
+    "buildCommand": "node scripts/build-vercel.mjs",
+    "outputDirectory": ".",
+    "framework": null,
+    "rewrites": [
+          { "source": "/(.*)", "destination": "/api" }
+    ]
 }
