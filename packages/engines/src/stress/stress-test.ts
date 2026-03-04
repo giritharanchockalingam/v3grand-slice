@@ -8,7 +8,7 @@
 
 import type { Deal, ProFormaOutput } from '@v3grand/core';
 import { buildProForma } from '../underwriter/index.js';
-import { evaluateDecision } from '../decision/index.js';
+import { evaluate as evaluateDecision } from '../decision/index.js';
 import { scoreFactors } from '../factor/index.js';
 
 // ── Types ──
