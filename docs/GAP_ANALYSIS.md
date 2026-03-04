@@ -208,11 +208,10 @@
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| `docker-compose.yml` | ✅ Implemented | PostgreSQL container for dev. |
+| `docker-compose.yml` | ✅ Implemented | PostgreSQL + Redis containers for dev. |
 | Temporal container | ❌ Missing | Spec requires Temporal for durable workflows. |
-| Redis container | ❌ Missing | Spec includes Redis for caching. |
 | NATS container | ❌ Missing | Spec includes NATS JetStream for event bus (Layer 3). |
-| CI/CD (GitHub Actions) | ❌ Missing | No `.github/workflows/` directory. |
+| CI/CD (GitHub Actions) | ⚠️ Added | Basic workflow in `.github/workflows/`. |
 | Terraform / deploy scripts | ❌ Missing | No production deployment configuration. |
 
 ### A.7 — `packages/workflows` (Temporal)
@@ -339,7 +338,7 @@
 | `packages/api` | 25+ endpoints, Temporal integration, event wiring, WebSocket, Redis, impact simulator | 16 endpoints, inline recompute, unwired event bus | **40%** |
 | `packages/workflows` | Full Temporal package with 3+ durable workflows, activities, compensation | **Does not exist** | **0%** |
 | `packages/ui` | 15+ components, Recharts, Zustand, route guards, deal creation, reval history | 10 components, no charts, no state mgmt, no guards | **35%** |
-| `packages/infra` | Docker Compose + Redis + Temporal + NATS, CI/CD, Terraform | Docker Compose (Postgres only) | **15%** |
+| `packages/infra` | Docker Compose + Redis + Temporal + NATS, CI/CD, Terraform | Docker Compose (Postgres + Redis) | **15%** |
 
 ### By Spec Document Layer
 

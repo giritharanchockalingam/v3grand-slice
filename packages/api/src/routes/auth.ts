@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { getUserByEmail, getUserById } from '@v3grand/db';
 import { signToken, authGuard } from '../middleware/auth.js';
+import { config } from '../config.js';
 
 const SALT_ROUNDS = 10;
 
@@ -26,33 +27,41 @@ export async function authRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
   app.post<{
     Body: { email: string; password: string };
   }>('/auth/login', async (req, reply) => {
-    const { email, password } = req.body;
+    try {
+      const { email, password } = req.body ?? {};
 
-    if (!email || !password) {
-      return reply.code(400).send({ error: 'Email and password required' });
-    }
+      if (!email || !password) {
+        return reply.code(400).send({ error: 'Email and password required' });
+      }
 
-    const user = await getUserByEmail(db, email);
-    if (!user || !verifyPassword(password, user.passwordHash)) {
-      return reply.code(401).send({ error: 'Invalid credentials' });
-    }
+      const user = await getUserByEmail(db, email);
+      if (!user || !verifyPassword(password, user.passwordHash)) {
+        return reply.code(401).send({ error: 'Invalid credentials' });
+      }
 
-    const token = signToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role as any,
-    });
-
-    return {
-      user: {
-        id: user.id,
+      const token = signToken({
+        userId: String(user.id),
         email: user.email,
-        name: user.name,
-        role: user.role,
-        createdAt: user.createdAt.toISOString(),
-      },
-      token,
-    };
+        role: user.role as any,
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          createdAt: user.createdAt instanceof Date ? user.createdAt.toISOString() : String(user.createdAt),
+        },
+        token,
+      };
+    } catch (err) {
+      req.log.error({ err }, 'auth/login failed');
+      return reply.code(500).send({
+        error: 'Login failed',
+        ...(!config.isProd && { details: err instanceof Error ? err.message : String(err) }),
+      });
+    }
   });
 
   // ── GET /auth/me ──

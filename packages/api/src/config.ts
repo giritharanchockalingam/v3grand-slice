@@ -1,6 +1,16 @@
 // ─── Config Module ──────────────────────────────────────────────────
 // Central place for all env-driven config with strong defaults.
 
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load repo-root .env (works regardless of cwd)
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
 const osUser = process.env.USER ?? process.env.USERNAME ?? 'postgres';
 
 export const config = {
@@ -21,4 +31,7 @@ export const config = {
 
   /** True in production */
   isProd: (process.env.NODE_ENV ?? 'development') === 'production',
+
+  /** NATS server URL for JetStream event bus. If unset, in-process bus is used. */
+  natsUrl: process.env.NATS_URL ?? '',
 } as const;

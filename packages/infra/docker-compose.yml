@@ -1,6 +1,6 @@
 # ─── V3 Grand: Local Development Infrastructure ─────────────────────
 # Run: docker compose up -d
-# Postgres: localhost:5432  Redis: localhost:6379
+# Postgres: localhost:5432  Redis: localhost:6379  NATS: localhost:4222 (JetStream)
 version: '3.8'
 
 services:
@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: v3grand
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -27,6 +27,13 @@ services:
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
+
+  nats:
+    image: nats:latest
+    command: ['-js', '-m', '8222']
+    ports:
+      - '4222:4222'
+      - '8222:8222'
 
 volumes:
   pgdata:

@@ -14,21 +14,24 @@
 # 1. Install dependencies
 pnpm install
 
-# 2. Copy env file and edit if needed (defaults work on macOS with Homebrew PG)
+# 2. Copy env file and edit if needed (defaults work with Docker Compose)
 cp .env.example .env
 
-# 3. Create database + seed
+# 3. Start infrastructure (PostgreSQL + Redis)
+cd packages/infra && docker compose up -d && cd ../..
+
+# 4. Create database + seed
 pnpm --filter @v3grand/db run seed
 #    Creates "v3grand" DB, all tables, demo users, V3 Grand deal, construction
 #    data, risk register entries, and initial engine results.
 
-# 4. Start API server (port 3001)
+# 5. Start API server (port 3001)
 pnpm --filter @v3grand/api run dev
 
-# 5. Start UI (port 3000) — in a separate terminal
+# 6. Start UI (port 3000) — in a separate terminal
 pnpm --filter @v3grand/ui run dev
 
-# 6. Open http://localhost:3000/login
+# 7. Open http://localhost:3000/login
 ```
 
 ## Demo Credentials
@@ -79,8 +82,8 @@ pnpm --filter @v3grand/ui run dev
 To reset the database and start fresh:
 
 ```bash
-# Drop and recreate
-psql -c "DROP DATABASE IF EXISTS v3grand"
+# Drop and recreate (when using Docker: database is v3grand, user postgres)
+psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS v3grand"
 pnpm --filter @v3grand/db run seed
 ```
 
@@ -93,14 +96,15 @@ packages/
   db/       — Drizzle schema, queries, seed
   api/      — Fastify server, routes, recompute service
   ui/       — Next.js 14 App Router frontend
+  infra/    — Docker Compose (PostgreSQL, Redis)
 ```
 
 ## Troubleshooting
 
 | Issue | Fix |
 |-------|-----|
-| `ECONNREFUSED :5432` | Start PostgreSQL: `brew services start postgresql@15` |
+| `ECONNREFUSED :5432` | Start infra: `cd packages/infra && docker compose up -d` or `brew services start postgresql@15` |
 | `database "v3grand" does not exist` | Run `pnpm --filter @v3grand/db run seed` |
-| API CORS errors | Check `NEXT_PUBLIC_API_URL` in `.env` matches API port |
+| API CORS errors | Check `NEXT_PUBLIC_API_URL` in `.env` matches API port (default 3001) |
 | "No access to this deal" | Run seed to create deal_access entries |
 | Blank dashboard after seed | Click "Recompute" to generate initial engine results |

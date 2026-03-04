@@ -3,6 +3,8 @@
 export type DomainEvent =
   | { type: 'assumption.updated'; dealId: string; userId: string;
       field: string; oldValue: unknown; newValue: unknown }
+  | { type: 'change-order.approved'; dealId: string; coId: string;
+      userId: string; amount: number }
   | { type: 'engine.completed'; dealId: string; engineName: string;
       version: number; durationMs: number }
   | { type: 'recommendation.changed'; dealId: string;

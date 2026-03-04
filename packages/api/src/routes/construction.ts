@@ -5,8 +5,9 @@ import { logger } from '@v3grand/core';
 import { getDealById, getBudgetLinesByDeal, createBudgetLine, updateBudgetLine, getChangeOrdersByDeal, createChangeOrder, approveChangeOrder, getChangeOrderById, getRFIsByDeal, createRFI, answerRFI, getRFIById, getMilestonesByDeal, createMilestone, updateMilestone, getMilestoneById, getConstructionSummary, insertAuditEntry } from '@v3grand/db';
 import { authGuard, attachUser } from '../middleware/auth.js';
 import { recomputeDeal } from '../services/recompute.js';
+import type { NatsEventBus } from '../nats-event-bus.js';
 
-export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
+export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDatabase, natsBus?: NatsEventBus | null) {
 
   // ── GET /deals/:id/construction/dashboard ──
   app.get<{ Params: { id: string } }>('/deals/:id/construction/dashboard', { preHandler: authGuard }, async (req, reply) => {
@@ -105,6 +106,16 @@ export async function constructionRoutes(app: FastifyInstance, db: PostgresJsDat
     } catch (err) {
       logger.error('construction.recompute_after_co.failed', { dealId: id, error: String(err) });
       // CO is already approved — don't fail the request, just log
+    }
+
+    if (natsBus) {
+      await natsBus.publish({
+        type: 'change-order.approved',
+        dealId: id,
+        coId,
+        userId: user.userId,
+        amount: parseFloat(co.amount as string),
+      });
     }
 
     return co;

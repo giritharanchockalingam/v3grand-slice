@@ -14,8 +14,9 @@ import { recommendations } from '@v3grand/db';
 import { eq, desc } from 'drizzle-orm';
 import { recomputeDeal } from '../services/recompute.js';
 import { authGuard, attachUser } from '../middleware/auth.js';
+import type { NatsEventBus } from '../nats-event-bus.js';
 
-export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
+export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, natsBus?: NatsEventBus | null) {
 
   // ── GET /deals ── (list deals this user has access to)
   app.get('/deals', { preHandler: authGuard }, async (req, reply) => {
@@ -84,6 +85,17 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
             npv: result.proforma.npv,
             equityMultiple: result.proforma.equityMultiple,
           } : null,
+        });
+      }
+
+      if (natsBus) {
+        await natsBus.publish({
+          type: 'assumption.updated',
+          dealId: id,
+          userId: user.userId,
+          field: 'assumptions',
+          oldValue: undefined,
+          newValue: req.body,
         });
       }
 
