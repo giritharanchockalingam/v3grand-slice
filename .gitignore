@@ -9,5 +9,8 @@ dist
 !.env.example
 _tmp_*
 
+# Vercel esbuild output (generated at deploy time)
+packages/api/api/index.mjs
+
 .DS_Store
 Investment Portal/
