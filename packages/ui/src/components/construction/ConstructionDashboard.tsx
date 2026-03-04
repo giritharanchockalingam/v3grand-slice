@@ -76,19 +76,34 @@ function BudgetLinesTable({ lines }: { lines: any[] }) {
         </thead>
         <tbody>
           {lines.map((l) => {
-            const variance = l.currentBudget - l.actualSpend - l.commitments;
+            const currentBudget = typeof l.currentBudget === 'string' ? parseFloat(l.currentBudget) : l.currentBudget;
+            const actualSpend = typeof l.actualSpend === 'string' ? parseFloat(l.actualSpend) : l.actualSpend;
+            const commitments = typeof l.commitments === 'string' ? parseFloat(l.commitments) : l.commitments;
+            const approvedCOs = typeof l.approvedCOs === 'string' ? parseFloat(l.approvedCOs) : l.approvedCOs;
+            const originalAmount = typeof l.originalAmount === 'string' ? parseFloat(l.originalAmount) : l.originalAmount;
+            const variance = currentBudget - actualSpend - commitments;
+            const variancePct = currentBudget > 0 ? Math.abs(variance / currentBudget) : 0;
+            const isOverBudget = variance < 0;
+            const isCritical = isOverBudget && variancePct > 0.10;
+            const isWarning = isOverBudget && variancePct > 0.05 && !isCritical;
+            const rowBg = isCritical ? 'bg-red-50 hover:bg-red-100' : isWarning ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50';
             return (
-              <tr key={l.id} className="border-b border-gray-100 hover:bg-gray-50">
+              <tr key={l.id} className={`border-b border-gray-100 ${rowBg}`}>
                 <td className="px-3 py-2 font-mono">{l.costCode}</td>
-                <td className="px-3 py-2">{l.description}</td>
+                <td className="px-3 py-2">
+                  {l.description}
+                  {isCritical && <span className="ml-2 text-2xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">OVER &gt;10%</span>}
+                  {isWarning && <span className="ml-2 text-2xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">WATCH</span>}
+                </td>
                 <td className="px-3 py-2">{l.category}</td>
-                <td className="px-3 py-2 text-right">{fmt(l.originalAmount)}</td>
-                <td className="px-3 py-2 text-right">{l.approvedCOs !== 0 ? fmt(l.approvedCOs) : '—'}</td>
-                <td className="px-3 py-2 text-right font-medium">{fmt(l.currentBudget)}</td>
-                <td className="px-3 py-2 text-right">{fmt(l.actualSpend)}</td>
-                <td className="px-3 py-2 text-right">{fmt(l.commitments)}</td>
-                <td className={`px-3 py-2 text-right font-medium ${variance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <td className="px-3 py-2 text-right">{fmt(originalAmount)}</td>
+                <td className="px-3 py-2 text-right">{approvedCOs !== 0 ? fmt(approvedCOs) : '—'}</td>
+                <td className="px-3 py-2 text-right font-medium">{fmt(currentBudget)}</td>
+                <td className="px-3 py-2 text-right">{fmt(actualSpend)}</td>
+                <td className="px-3 py-2 text-right">{fmt(commitments)}</td>
+                <td className={`px-3 py-2 text-right font-medium ${isCritical ? 'text-red-700 font-bold' : isOverBudget ? 'text-red-600' : 'text-green-600'}`}>
                   {fmt(variance)}
+                  {variancePct > 0 && <span className="text-2xs ml-1 text-gray-400">({(variancePct * 100).toFixed(1)}%)</span>}
                 </td>
               </tr>
             );
@@ -347,20 +362,34 @@ function RFIsList({ rfis, dealId }: { rfis: any[]; dealId: string }) {
       )}
 
       {rfis.length === 0 && <p className="text-sm text-gray-400">No RFIs.</p>}
-      {rfis.map((rfi) => (
-        <div key={rfi.id} className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-gray-500">{rfi.rfiNumber}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[rfi.status] ?? 'bg-gray-100'}`}>
-              {rfi.status}
-            </span>
+      {rfis.map((rfi) => {
+        const daysSinceCreated = rfi.createdAt ? Math.floor((Date.now() - new Date(rfi.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        const isOverdue = rfi.status === 'open' && daysSinceCreated > 14;
+        return (
+          <div key={rfi.id} className={`bg-white border rounded-lg p-4 ${isOverdue ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-mono text-gray-500">{rfi.rfiNumber}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[rfi.status] ?? 'bg-gray-100'}`}>
+                {rfi.status}
+              </span>
+              {isOverdue && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+                  OVERDUE ({daysSinceCreated}d)
+                </span>
+              )}
+              {rfi.status === 'open' && daysSinceCreated > 7 && !isOverdue && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">
+                  {daysSinceCreated}d open
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-medium">{rfi.subject}</div>
+            <div className="text-xs text-gray-600 mt-1">Q: {rfi.question}</div>
+            {rfi.answer && <div className="text-xs text-green-700 mt-1">A: {rfi.answer}</div>}
+            <div className="text-xs text-gray-400 mt-1">Raised by: {rfi.raisedBy}</div>
           </div>
-          <div className="text-sm font-medium">{rfi.subject}</div>
-          <div className="text-xs text-gray-600 mt-1">Q: {rfi.question}</div>
-          {rfi.answer && <div className="text-xs text-green-700 mt-1">A: {rfi.answer}</div>}
-          <div className="text-xs text-gray-400 mt-1">Raised by: {rfi.raisedBy}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

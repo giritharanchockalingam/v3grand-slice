@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory } from '../schema/index.js';
 
 type DB = PostgresJsDatabase;
 
@@ -30,7 +30,9 @@ export async function updateDealActiveScenario(db: DB, dealId: string, scenarioK
   return updated;
 }
 
-// ── Engine Results (versioned, append-only) ──
+// ── Engine Results (versioned, append-only, hash-chained) ──
+// G-2/F-3: Every engine result is cryptographically hash-chained (SHA-256).
+// G-10/F-4: Every result is tagged with the model version that produced it.
 export async function insertEngineResult(
   db: DB,
   row: {
@@ -38,6 +40,9 @@ export async function insertEngineResult(
     scenarioKey?: string;
     input: unknown; output: unknown;
     durationMs: number; triggeredBy: string;
+    contentHash?: string;       // SHA-256 hash of this result (computed by caller)
+    previousHash?: string;      // Hash of the previous result in the chain
+    modelVersion?: string;      // Semantic version of the engine model
   }
 ) {
   // Get next version (scoped by deal + engine + scenario)
@@ -54,10 +59,46 @@ export async function insertEngineResult(
     .where(and(...conditions));
 
   const [inserted] = await db.insert(engineResults).values({
-    ...row,
+    dealId: row.dealId,
+    engineName: row.engineName,
+    scenarioKey: row.scenarioKey,
+    input: row.input,
+    output: row.output,
+    durationMs: row.durationMs,
+    triggeredBy: row.triggeredBy,
+    contentHash: row.contentHash ?? 'genesis',
+    previousHash: row.previousHash ?? 'genesis',
+    modelVersion: row.modelVersion ?? '1.0.0',
     version: (max ?? 0) + 1,
   }).returning();
   return inserted;
+}
+
+/**
+ * Get the most recent content hash for a deal+engine+scenario chain.
+ * Used by the recompute service to link the next result in the chain.
+ */
+export async function getLatestContentHash(
+  db: DB,
+  dealId: string,
+  engineName: string,
+  scenarioKey?: string,
+): Promise<string> {
+  const conditions = [
+    eq(engineResults.dealId, dealId),
+    eq(engineResults.engineName, engineName),
+  ];
+  if (scenarioKey) {
+    conditions.push(eq(engineResults.scenarioKey, scenarioKey));
+  }
+
+  const [row] = await db.select({ contentHash: engineResults.contentHash })
+    .from(engineResults)
+    .where(and(...conditions))
+    .orderBy(desc(engineResults.version))
+    .limit(1);
+
+  return row?.contentHash ?? 'genesis';
 }
 
 export async function getLatestEngineResult(db: DB, dealId: string, engineName: string) {
@@ -575,4 +616,101 @@ export async function getRiskSummary(db: DB, dealId: string) {
     highPriority: highOpen.length,
     categories: [...new Set(allRisks.map(r => r.category))],
   };
+}
+
+// ── Deal Creation ──
+export async function createDeal(
+  db: DB,
+  data: {
+    name: string;
+    assetClass: string;
+    property: unknown;
+    partnership: unknown;
+    marketAssumptions: unknown;
+    financialAssumptions: unknown;
+    capexPlan: unknown;
+    opexModel: unknown;
+    scenarios: unknown;
+  }
+) {
+  const [deal] = await db.insert(deals).values({
+    ...data,
+    status: 'draft',
+    lifecyclePhase: 'pre-development',
+    currentMonth: 0,
+    version: 1,
+    activeScenarioKey: 'base',
+  }).returning();
+  return deal;
+}
+
+// ── Deal Month Update ──
+export async function updateDealCurrentMonth(
+  db: DB,
+  dealId: string,
+  newMonth: number
+) {
+  const [updated] = await db.update(deals)
+    .set({ currentMonth: newMonth, updatedAt: new Date() })
+    .where(eq(deals.id, dealId))
+    .returning();
+  return updated;
+}
+
+// ── Recommendation History ──
+export async function getRecommendationHistory(db: DB, dealId: string, limit = 50) {
+  return db.select()
+    .from(recommendations)
+    .where(eq(recommendations.dealId, dealId))
+    .orderBy(desc(recommendations.version))
+    .limit(limit);
+}
+
+// ── Engine Result History ──
+export async function getEngineResultHistory(
+  db: DB,
+  dealId: string,
+  engineName: string,
+  scenarioKey?: string,
+  limit = 50
+) {
+  const conditions = [
+    eq(engineResults.dealId, dealId),
+    eq(engineResults.engineName, engineName),
+  ];
+  if (scenarioKey) {
+    conditions.push(eq(engineResults.scenarioKey, scenarioKey));
+  }
+
+  return db.select()
+    .from(engineResults)
+    .where(and(...conditions))
+    .orderBy(desc(engineResults.version))
+    .limit(limit);
+}
+
+// ── Market Data History (G-4/F-8: append-only audit trail) ──
+export async function insertMarketDataHistory(
+  db: DB,
+  entries: Array<{
+    indicator: string;
+    value: number;
+    asOfDate: string;
+    source: string;
+    sourceType: string;
+    previousValue?: number;
+    changeReason?: string;
+  }>,
+) {
+  if (entries.length === 0) return;
+  const rows = entries.map(e => ({
+    indicator: e.indicator,
+    value: String(e.value),
+    asOfDate: e.asOfDate,
+    source: e.source,
+    sourceType: e.sourceType,
+    previousValue: e.previousValue != null ? String(e.previousValue) : null,
+    changeReason: e.changeReason ?? null,
+  }));
+  await db.insert(marketDataHistory).values(rows);
 }

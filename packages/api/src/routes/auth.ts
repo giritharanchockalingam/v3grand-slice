@@ -39,7 +39,7 @@ export async function authRoutes(app: FastifyInstance, db: PostgresJsDatabase) {
         return reply.code(401).send({ error: 'Invalid credentials' });
       }
 
-      const token = signToken({
+      const token = await signToken({
         userId: String(user.id),
         email: user.email,
         role: user.role as any,

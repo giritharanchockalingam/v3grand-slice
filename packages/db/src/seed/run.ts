@@ -2,16 +2,28 @@
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, dealAccess, risks } from '../schema/index.js';
 import { v3GrandSeed, V3_GRAND_DEAL_ID } from './v3grand.js';
 import { execSync } from 'child_process';
 import { scryptSync, randomBytes } from 'crypto';
+
+// Load repo-root .env (works regardless of cwd)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
 
 // On macOS, Homebrew Postgres uses your OS username with no password.
 // Detect the current user as fallback if DATABASE_URL isn't set.
 const osUser = process.env.USER ?? process.env.USERNAME ?? 'postgres';
 const DEFAULT_URL = `postgres://${osUser}@localhost:5432/v3grand`;
 const DATABASE_URL = process.env.DATABASE_URL ?? DEFAULT_URL;
+
+// When DATABASE_SCHEMA is set (e.g. 'v3grand' for Supabase), the seed
+// script sets search_path so all unqualified table names resolve there.
+const DATABASE_SCHEMA = process.env.DATABASE_SCHEMA ?? '';
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16);
@@ -49,9 +61,19 @@ async function ensureDatabase() {
 }
 
 async function seed() {
-  await ensureDatabase();
+  // When using a custom schema (Supabase), the database already exists –
+  // skip the ensureDatabase() step that tries to CREATE DATABASE.
+  if (!DATABASE_SCHEMA) {
+    await ensureDatabase();
+  } else {
+    console.log(`Using schema "${DATABASE_SCHEMA}" (skipping database creation).`);
+  }
 
-  const client = postgres(DATABASE_URL);
+  const client = postgres(DATABASE_URL, {
+    ...(DATABASE_SCHEMA
+      ? { connection: { search_path: DATABASE_SCHEMA } }
+      : {}),
+  });
   const db = drizzle(client);
 
   console.log('Creating tables...');

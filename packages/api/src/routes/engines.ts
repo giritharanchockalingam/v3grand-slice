@@ -74,7 +74,7 @@ export async function engineRoutes(app: FastifyInstance, db: PostgresJsDatabase)
       dealId: id, userId: user.userId, role: user.role,
       module: 'factor', action: 'engine.completed',
       entityType: 'engine_result', entityId: id,
-      diff: { compositeScore: result.compositeScore, requiredReturn: result.requiredReturn },
+      diff: { compositeScore: result.compositeScore, impliedDiscountRate: result.impliedDiscountRate },
     });
 
     return result;
@@ -217,7 +217,7 @@ export async function engineRoutes(app: FastifyInstance, db: PostgresJsDatabase)
       dealId: id, userId: user.userId, role: user.role,
       module: 'budget', action: 'engine.completed',
       entityType: 'engine_result', entityId: id,
-      diff: { overallStatus: result.overallStatus, variancePct: result.variancePct },
+      diff: { overallStatus: result.overallStatus, varianceToCurrent: result.varianceToCurrent },
     });
 
     return result;

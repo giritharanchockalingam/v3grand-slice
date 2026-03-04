@@ -1,92 +1,93 @@
 // ─── JWT Authentication & Authorization Middleware ──────────────────
-import { createHmac } from 'crypto';
+// G-5/F-5: Uses the `jose` library for standards-compliant JWT handling.
+// Replaces hand-rolled base64url + HMAC with auditable, battle-tested code.
+// Supports HS256 (HMAC-SHA256) signing with proper JOSE header validation.
+//
+// jose: https://github.com/panva/jose — 0-dependency, TypeScript-native,
+// used by Auth.js / NextAuth / Supabase / Cloudflare Workers.
+
+import { SignJWT, jwtVerify, errors as joseErrors } from 'jose';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import type { AuthToken, User } from '@v3grand/core';
 import { config } from '../config.js';
 
-const JWT_SECRET = config.jwtSecret;
-const JWT_EXPIRY_SECONDS = 24 * 60 * 60; // 24 hours
+// ── Secret encoding ──
+// jose requires Uint8Array for symmetric keys
+const JWT_SECRET = new TextEncoder().encode(config.jwtSecret);
+const JWT_EXPIRY = '24h';
+const JWT_ISSUER = 'v3grand-api';
+const JWT_AUDIENCE = 'v3grand-app';
 
-interface DecodedJWT {
-  header: Record<string, unknown>;
-  payload: AuthToken;
-  signature: string;
+interface DecodedPayload {
+  userId: string;
+  email: string;
+  role: string;
+  iat?: number;
+  exp?: number;
 }
 
 /**
- * Base64URL encode (no padding)
+ * Sign a JWT token using jose (HS256).
+ * Sets standard claims: iss, aud, iat, exp, jti (unique ID).
  */
-function base64urlEncode(data: string | Buffer): string {
-  const base64 = Buffer.from(data).toString('base64');
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+export async function signToken(payload: Omit<AuthToken, 'iat' | 'exp'>): Promise<string> {
+  const jwt = await new SignJWT({
+    userId: payload.userId,
+    email: payload.email,
+    role: payload.role,
+  })
+    .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setIssuedAt()
+    .setExpirationTime(JWT_EXPIRY)
+    .setIssuer(JWT_ISSUER)
+    .setAudience(JWT_AUDIENCE)
+    .setJti(crypto.randomUUID())
+    .sign(JWT_SECRET);
+
+  return jwt;
 }
 
 /**
- * Base64URL decode
+ * Verify and decode a JWT token using jose.
+ * Validates: signature, expiry, issuer, audience, required claims.
  */
-function base64urlDecode(str: string): Buffer {
-  let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-  // Restore padding
-  const padding = 4 - (str.length % 4);
-  if (padding !== 4) {
-    base64 += '='.repeat(padding);
-  }
-  return Buffer.from(base64, 'base64');
-}
-
-/**
- * Sign JWT token
- */
-export function signToken(payload: Omit<AuthToken, 'iat' | 'exp'>): string {
-  const now = Math.floor(Date.now() / 1000);
-  const tokenPayload: AuthToken = {
-    ...payload,
-    iat: now,
-    exp: now + JWT_EXPIRY_SECONDS,
-  };
-
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const headerStr = base64urlEncode(JSON.stringify(header));
-  const payloadStr = base64urlEncode(JSON.stringify(tokenPayload));
-
-  const message = `${headerStr}.${payloadStr}`;
-  const signature = createHmac('sha256', JWT_SECRET).update(message).digest();
-  const signatureStr = base64urlEncode(signature);
-
-  return `${message}.${signatureStr}`;
-}
-
-/**
- * Verify and decode JWT token
- */
-export function verifyToken(token: string): AuthToken | null {
+export async function verifyToken(token: string): Promise<DecodedPayload | null> {
   try {
-    const [headerStr, payloadStr, signatureStr] = token.split('.');
-    if (!headerStr || !payloadStr || !signatureStr) return null;
+    const { payload } = await jwtVerify(token, JWT_SECRET, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      algorithms: ['HS256'],
+      requiredClaims: ['userId', 'email', 'role'],
+    });
 
-    // Verify signature
-    const message = `${headerStr}.${payloadStr}`;
-    const expectedSignature = base64urlEncode(
-      createHmac('sha256', JWT_SECRET).update(message).digest()
-    );
-
-    if (signatureStr !== expectedSignature) return null;
-
-    // Decode payload
-    const payloadData = JSON.parse(base64urlDecode(payloadStr).toString('utf-8'));
-    const now = Math.floor(Date.now() / 1000);
-
-    // Check expiry
-    if (payloadData.exp && payloadData.exp < now) return null;
-
-    return payloadData as AuthToken;
+    return {
+      userId: payload.userId as string,
+      email: payload.email as string,
+      role: payload.role as string,
+      iat: payload.iat,
+      exp: payload.exp,
+    };
   } catch (err) {
+    // Distinguish error types for observability
+    if (err instanceof joseErrors.JWTExpired) {
+      // Token expired — normal for long-lived sessions
+      return null;
+    }
+    if (err instanceof joseErrors.JWTClaimValidationFailed) {
+      // Missing or invalid claims (issuer, audience mismatch)
+      return null;
+    }
+    if (err instanceof joseErrors.JWSSignatureVerificationFailed) {
+      // Tampered token or wrong secret
+      return null;
+    }
+    // Unknown error — still return null for safety
     return null;
   }
 }
 
 /**
- * Extract token from Bearer header
+ * Extract Bearer token from Authorization header.
  */
 export function extractTokenFromHeader(authHeader?: string): string | null {
   if (!authHeader) return null;
@@ -95,7 +96,7 @@ export function extractTokenFromHeader(authHeader?: string): string | null {
 }
 
 /**
- * Fastify auth guard hook
+ * Fastify auth guard hook — rejects unauthenticated requests.
  */
 export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
   const token = extractTokenFromHeader(request.headers.authorization);
@@ -103,7 +104,7 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
     return reply.code(401).send({ error: 'Missing or invalid authorization header' });
   }
 
-  const decoded = verifyToken(token);
+  const decoded = await verifyToken(token);
   if (!decoded) {
     return reply.code(401).send({ error: 'Invalid or expired token' });
   }
@@ -117,12 +118,12 @@ export async function authGuard(request: FastifyRequest, reply: FastifyReply) {
 }
 
 /**
- * Attach decoded user to request without throwing
+ * Soft auth — attaches user if valid token present, doesn't reject.
  */
 export async function attachUser(request: FastifyRequest, reply: FastifyReply) {
   const token = extractTokenFromHeader(request.headers.authorization);
   if (token) {
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (decoded) {
       (request as any).user = {
         userId: decoded.userId,
@@ -134,7 +135,7 @@ export async function attachUser(request: FastifyRequest, reply: FastifyReply) {
 }
 
 /**
- * Role-based access control
+ * Role-based access control — guard that checks for specific roles.
  */
 export function requireRole(...roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
@@ -143,7 +144,7 @@ export function requireRole(...roles: string[]) {
       return reply.code(401).send({ error: 'Missing or invalid authorization header' });
     }
 
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (!decoded) {
       return reply.code(401).send({ error: 'Invalid or expired token' });
     }

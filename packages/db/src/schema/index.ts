@@ -2,6 +2,7 @@
 import { pgTable, uuid, varchar, integer, jsonb, timestamp, uniqueIndex, index, boolean, decimal } from 'drizzle-orm/pg-core';
 
 // ── Users ──
+// G-3/F-14: Added soft delete (deletedAt) and data retention fields for DPDP/GDPR compliance
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: varchar('email', { length: 255 }).notNull().unique(),
@@ -9,6 +10,10 @@ export const users = pgTable('users', {
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   role: varchar('role', { length: 50 }).notNull().default('viewer'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),                          // G-3: Soft delete
+  dataRetentionExpiresAt: timestamp('data_retention_expires_at'), // G-3: Auto-purge date
+  consentGiven: boolean('consent_given').notNull().default(false),
+  consentTimestamp: timestamp('consent_timestamp'),
 });
 
 // ── Deal Access (per-user, per-deal role mapping) ──
@@ -45,21 +50,29 @@ export const deals = pgTable('deals', {
   updatedAt:           timestamp('updated_at').notNull().defaultNow(),
 });
 
-// ── Engine Results (versioned, append-only) ──
+// ── Engine Results (versioned, append-only, hash-chained for tamper evidence) ──
+// G-2/F-3: Cryptographic hash chain — each result contains SHA-256 of its predecessor
+// G-10/F-4: Model version registry — tracks which engine code version produced each result
 export const engineResults = pgTable('engine_results', {
-  id:          uuid('id').primaryKey().defaultRandom(),
-  dealId:      uuid('deal_id').notNull().references(() => deals.id),
-  engineName:  varchar('engine_name', { length: 50 }).notNull(),
-  scenarioKey: varchar('scenario_key', { length: 20 }).notNull().default('base'),
-  version:     integer('version').notNull(),
-  input:       jsonb('input').notNull(),
-  output:      jsonb('output').notNull(),
-  durationMs:  integer('duration_ms').notNull(),
-  triggeredBy: varchar('triggered_by', { length: 100 }).notNull(),
-  createdAt:   timestamp('created_at').notNull().defaultNow(),
+  id:            uuid('id').primaryKey().defaultRandom(),
+  dealId:        uuid('deal_id').notNull().references(() => deals.id),
+  engineName:    varchar('engine_name', { length: 50 }).notNull(),
+  scenarioKey:   varchar('scenario_key', { length: 20 }).notNull().default('base'),
+  version:       integer('version').notNull(),
+  input:         jsonb('input').notNull(),
+  output:        jsonb('output').notNull(),
+  durationMs:    integer('duration_ms').notNull(),
+  triggeredBy:   varchar('triggered_by', { length: 100 }).notNull(),
+  // G-2: Hash chain for tamper-evidence (SHA-256 of previousHash + engineName + version + input + output)
+  contentHash:   varchar('content_hash', { length: 64 }).notNull().default('genesis'),
+  previousHash:  varchar('previous_hash', { length: 64 }).notNull().default('genesis'),
+  // G-10: Model version registry — semantic version or git commit of engine code
+  modelVersion:  varchar('model_version', { length: 50 }).notNull().default('1.0.0'),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
 }, (t) => ({
   uniqueVersion: uniqueIndex('er_deal_engine_scenario_version').on(t.dealId, t.engineName, t.scenarioKey, t.version),
   latestIdx:     index('er_deal_engine_scenario_latest').on(t.dealId, t.engineName, t.scenarioKey, t.createdAt),
+  hashIdx:       index('er_content_hash_idx').on(t.contentHash),
 }));
 
 // ── Recommendations (versioned, append-only) ──
@@ -187,6 +200,82 @@ export const domainEvents = pgTable('domain_events', {
   dealSeq: uniqueIndex('de_deal_seq').on(t.dealId, t.seqNo),
   statusIdx: index('de_status_idx').on(t.status),
   idempotency: uniqueIndex('de_idempotency').on(t.idempotencyKey),
+}));
+
+// ── Market Data Cache (MCP) ──
+export const marketDataCache = pgTable('market_data_cache', {
+  key: varchar('key', { length: 255 }).primaryKey(),
+  value: jsonb('value').notNull(),
+  source: varchar('source', { length: 50 }).notNull(),       // 'rbi' | 'world_bank' | 'fred' | 'data_gov_in' | 'multi-source'
+  fetchedAt: timestamp('fetched_at').notNull().defaultNow(),
+  expiresAt: timestamp('expires_at').notNull(),
+}, (t) => ({
+  expiresIdx: index('mdc_expires_idx').on(t.expiresAt),
+}));
+
+// ── G-4/F-8: Market Data History (append-only audit trail for every market data fetch) ──
+// Enables auditors to trace "on date X, the system used repo rate Y from source Z"
+export const marketDataHistory = pgTable('market_data_history', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  indicator:     varchar('indicator', { length: 100 }).notNull(), // 'repoRate' | 'cpi' | 'usdInr' | 'gdpGrowth' | etc.
+  value:         decimal('value', { precision: 18, scale: 6 }).notNull(),
+  asOfDate:      varchar('as_of_date', { length: 30 }).notNull(), // the date the data refers to
+  source:        varchar('source', { length: 100 }).notNull(),     // 'rbi-official' | 'fred-api' | 'exchangerate-api' | etc.
+  sourceType:    varchar('source_type', { length: 20 }).notNull(), // 'live-api' | 'official' | 'fallback'
+  previousValue: decimal('previous_value', { precision: 18, scale: 6 }),
+  changeReason:  varchar('change_reason', { length: 255 }),        // e.g. 'MPC rate cut', 'monthly CPI release'
+  fetchedAt:     timestamp('fetched_at').notNull().defaultNow(),
+}, (t) => ({
+  indicatorIdx: index('mdh_indicator_idx').on(t.indicator, t.fetchedAt),
+  sourceIdx:    index('mdh_source_idx').on(t.source),
+}));
+
+// ── G-11/F-2: Pending Actions (Four-Eyes / Maker-Checker Approval Workflow) ──
+// Critical actions require approval from a user with a different role than the initiator.
+export const pendingActions = pgTable('pending_actions', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  dealId:        uuid('deal_id').notNull().references(() => deals.id),
+  actionType:    varchar('action_type', { length: 50 }).notNull(), // 'assumption.update' | 'scenario.promote' | 'revalue' | 'deal.status'
+  status:        varchar('status', { length: 20 }).notNull().default('PENDING'), // PENDING | APPROVED | REJECTED | EXPIRED
+  // Who initiated
+  initiatorId:   varchar('initiator_id', { length: 255 }).notNull(),
+  initiatorRole: varchar('initiator_role', { length: 50 }).notNull(),
+  // Who approved/rejected
+  reviewerId:    varchar('reviewer_id', { length: 255 }),
+  reviewerRole:  varchar('reviewer_role', { length: 50 }),
+  reviewedAt:    timestamp('reviewed_at'),
+  reviewNote:    varchar('review_note', { length: 1000 }),
+  // Payload of the action to be taken upon approval
+  payload:       jsonb('payload').notNull(),
+  // Materiality assessment — low = auto-approve, medium = peer review, high = senior review
+  materiality:   varchar('materiality', { length: 20 }).notNull().default('medium'),
+  expiresAt:     timestamp('expires_at').notNull(), // pending actions expire after 7 days
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  dealStatusIdx: index('pa_deal_status_idx').on(t.dealId, t.status),
+  initiatorIdx:  index('pa_initiator_idx').on(t.initiatorId),
+  expiresIdx:    index('pa_expires_idx').on(t.expiresAt),
+}));
+
+// ── G-9/F-1: Model Validation Results (back-testing & benchmarking) ──
+export const modelValidationResults = pgTable('model_validation_results', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  engineName:     varchar('engine_name', { length: 50 }).notNull(),
+  modelVersion:   varchar('model_version', { length: 50 }).notNull(),
+  validationType: varchar('validation_type', { length: 50 }).notNull(), // 'backtest' | 'benchmark' | 'sensitivity' | 'champion-challenger'
+  // Input: historical deal IDs or synthetic scenarios used
+  testDataset:    jsonb('test_dataset').notNull(),
+  // Output: accuracy metrics, calibration stats
+  metrics:        jsonb('metrics').notNull(),   // { rmseIrr, maeNpv, calibrationScore, ... }
+  passed:         boolean('passed').notNull(),
+  // Who validated
+  validatedBy:    varchar('validated_by', { length: 255 }).notNull(),
+  validatedAt:    timestamp('validated_at').notNull().defaultNow(),
+  expiresAt:      timestamp('expires_at'), // validation results expire (re-validation required)
+  notes:          varchar('notes', { length: 2000 }),
+}, (t) => ({
+  engineVersionIdx: index('mvr_engine_version_idx').on(t.engineName, t.modelVersion),
+  typeIdx:          index('mvr_type_idx').on(t.validationType),
 }));
 
 // ── Risk Register ──

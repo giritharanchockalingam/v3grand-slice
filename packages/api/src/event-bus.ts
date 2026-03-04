@@ -80,8 +80,9 @@ export class EventBus {
    */
   async emit(event: DomainEvent, idempotencyKey?: string): Promise<void> {
     // Write-ahead: persist before processing
+    const dealId = 'dealId' in event ? event.dealId : 'SYSTEM';
     const persisted = await insertDomainEvent(this.db, {
-      dealId: event.dealId,
+      dealId,
       type: event.type,
       payload: event as unknown as Record<string, unknown>,
       idempotencyKey,
@@ -98,7 +99,8 @@ export class EventBus {
    * Process a single event with per-deal serialization.
    */
   private async processEvent(eventId: string, event: DomainEvent): Promise<void> {
-    await withDealLock(event.dealId, async () => {
+    const dealId = 'dealId' in event ? event.dealId : 'SYSTEM';
+    await withDealLock(dealId, async () => {
       const handlers = this.handlers.get(event.type) ?? [];
       if (handlers.length === 0) {
         // No handlers — mark as processed immediately

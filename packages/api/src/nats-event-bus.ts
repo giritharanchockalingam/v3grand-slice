@@ -24,14 +24,15 @@ export interface NatsEventBus {
 let nc: NatsConnection | null = null;
 let js: JetStreamClient | null = null;
 
-async function ensureStream(jsClient: JetStreamClient): Promise<void> {
+async function ensureStream(connection: NatsConnection): Promise<void> {
+  const jsm = await connection.jetstreamManager();
   try {
-    await jsClient.streams.get(STREAM_NAME);
+    await jsm.streams.info(STREAM_NAME);
     return;
   } catch {
     // stream does not exist
   }
-  await jsClient.streams.add({ name: STREAM_NAME, subjects: [`${SUBJECT}.>`] });
+  await jsm.streams.add({ name: STREAM_NAME, subjects: [`${SUBJECT}.>`] });
 }
 
 async function ensureConsumer(connection: NatsConnection, jsClient: JetStreamClient): Promise<void> {
@@ -55,7 +56,7 @@ export async function createNatsEventBus(config: NatsEventBusConfig): Promise<Na
 
   nc = await connect({ servers: config.natsUrl });
   js = nc.jetstream();
-  await ensureStream(js);
+  await ensureStream(nc);
   await ensureConsumer(nc, js);
 
   async function publish(event: DomainEvent, idempotencyKey?: string): Promise<void> {
@@ -84,7 +85,8 @@ export async function createNatsEventBus(config: NatsEventBusConfig): Promise<Na
           const event = envelope.payload;
           await handler(event, envelope);
           msg.ack();
-          console.log('[NATS] processed', event.dealId, event.type);
+          const dealId = 'dealId' in event ? event.dealId : 'SYSTEM';
+          console.log('[NATS] processed', dealId, event.type);
         } catch {
           msg.nak();
         }

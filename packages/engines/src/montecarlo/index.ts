@@ -54,6 +54,7 @@ export function runMonteCarlo(input: MCInput): MCOutput {
       occupancyStabilized: occStab,
       adrStabilized: Math.round(adrStab),
       ebitdaMargin: ebitdaMarginAdj,
+      mouRealizationPct: baseScenario.mouRealizationPct,
       phase2Trigger,
     };
 

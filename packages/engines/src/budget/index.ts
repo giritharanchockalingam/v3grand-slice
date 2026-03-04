@@ -104,12 +104,16 @@ export function analyzeBudget(input: BudgetAnalysisInput): BudgetAnalysisOutput 
   }
 
   return {
+    asOfMonth: input.asOfMonth,
     totalBudget: Math.round(totalBudget),
     totalCommitted: Math.round(totalCommitted),
     totalSpent: Math.round(totalSpent),
     totalForecast: Math.round(totalForecast),
     varianceToOriginal: Math.round(varianceToOriginal),
-    variancePct: round4(variancePct),
+    varianceToCurrent: round4(variancePct),
+    byCategory: [],
+    byCostCode: [],
+    sCurveData: [],
     lineVariances,
     alerts,
     overallStatus,

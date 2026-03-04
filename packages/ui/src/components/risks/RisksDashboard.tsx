@@ -21,6 +21,22 @@ const STATUS_COLORS: Record<string, string> = {
   closed:    'bg-gray-50 text-gray-500 border-gray-200',
 };
 
+// Risk Matrix severity mapping
+const getRiskSeverity = (likelihood: string, impact: string): 'critical' | 'high' | 'medium' | 'low' => {
+  const score = (LEVELS.indexOf(likelihood as any) + 1) * (LEVELS.indexOf(impact as any) + 1);
+  if (score >= 9) return 'critical';
+  if (score >= 6) return 'high';
+  if (score >= 3) return 'medium';
+  return 'low';
+};
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-600 text-white',
+  high: 'bg-orange-500 text-white',
+  medium: 'bg-yellow-400 text-white',
+  low: 'bg-green-500 text-white',
+};
+
 function RiskRow({
   risk,
   onStatusChange,
@@ -28,11 +44,19 @@ function RiskRow({
   risk: Risk;
   onStatusChange: (riskId: string, status: string) => void;
 }) {
+  const severity = getRiskSeverity(risk.likelihood, risk.impact);
+  const severityColor = SEVERITY_COLORS[severity];
+
   return (
     <div className={`rounded-lg border p-4 ${STATUS_COLORS[risk.status] ?? STATUS_COLORS.open}`}>
       <div className="flex items-start justify-between mb-2">
         <div>
-          <h4 className="font-medium text-sm">{risk.title}</h4>
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium text-sm">{risk.title}</h4>
+            <span className={`text-xs px-2 py-0.5 rounded font-bold ${severityColor}`}>
+              {severity.toUpperCase()}
+            </span>
+          </div>
           <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-600 mr-1">{risk.category}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -79,12 +103,82 @@ function RiskRow({
   );
 }
 
+function RiskMatrix({ risks }: { risks: Risk[] }) {
+  if (risks.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-4 bg-white">
+      <h3 className="text-sm font-medium text-gray-700 mb-4">Risk Matrix (Probability vs Impact)</h3>
+      <div className="grid grid-cols-4 gap-1">
+        {/* Header Row */}
+        <div />
+        {['Low', 'Medium', 'High'].map(label => (
+          <div key={label} className="text-xs font-medium text-center text-gray-600 py-2">
+            {label}
+          </div>
+        ))}
+
+        {/* Risk Matrix Cells */}
+        {LEVELS.map(likelihood => (
+          <div key={likelihood}>
+            <div className="text-xs font-medium text-gray-600 py-2 text-right pr-2 capitalize">
+              {likelihood}
+            </div>
+            {LEVELS.map(impact => {
+              const cellRisks = risks.filter(r => r.likelihood === likelihood && r.impact === impact);
+              const severity = getRiskSeverity(likelihood, impact);
+              const bgColor = severity === 'critical'
+                ? 'bg-red-100'
+                : severity === 'high'
+                ? 'bg-orange-100'
+                : severity === 'medium'
+                ? 'bg-yellow-100'
+                : 'bg-green-100';
+
+              return (
+                <div
+                  key={`${likelihood}-${impact}`}
+                  className={`rounded border border-gray-300 ${bgColor} min-h-24 p-1 flex flex-col items-center justify-center`}
+                >
+                  {cellRisks.length > 0 && (
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-gray-700">{cellRisks.length}</div>
+                      <div className="text-xs text-gray-600">risk{cellRisks.length !== 1 ? 's' : ''}</div>
+                      <div className="mt-1 flex flex-wrap gap-0.5 justify-center">
+                        {cellRisks.slice(0, 3).map(r => (
+                          <span
+                            key={r.id}
+                            className="text-xs bg-white text-gray-700 px-1 py-0.5 rounded truncate max-w-full"
+                            title={r.title}
+                          >
+                            {r.title.substring(0, 10)}...
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-500 mt-3">
+        Each cell shows the number of risks at that probability/impact level. Green is low risk; red is critical.
+      </p>
+    </div>
+  );
+}
+
 export function RisksDashboard({ dealId }: { dealId: string }) {
   const { data, isLoading, error } = useRisks(dealId);
   const createRisk = useCreateRisk(dealId);
   const updateRisk = useUpdateRisk(dealId);
   const { canEdit } = usePermissions();
   const [showForm, setShowForm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'matrix' | 'list'>('overview');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -99,6 +193,15 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
   if (error) return <div className="p-8 text-red-500">Error loading risks: {(error as Error).message}</div>;
 
   const { risks = [], summary } = data ?? {};
+
+  // Apply filters
+  let filteredRisks = risks;
+  if (filterCategory !== 'all') {
+    filteredRisks = filteredRisks.filter(r => r.category === filterCategory);
+  }
+  if (filterStatus !== 'all') {
+    filteredRisks = filteredRisks.filter(r => r.status === filterStatus);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -133,9 +236,41 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
         </div>
       </div>
 
-      {/* Header + Add Button */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Risk Register</h2>
+      {/* Header + Tabs */}
+      <div className="flex items-center justify-between border-b border-gray-200">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('matrix')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'matrix'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Risk Matrix
+          </button>
+          <button
+            onClick={() => setActiveTab('list')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'list'
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Risk List
+          </button>
+        </div>
+
         {canEdit && (
           <button
             onClick={() => setShowForm(!showForm)}
@@ -211,21 +346,128 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
         </form>
       )}
 
-      {/* Risk List */}
-      {risks.length === 0 ? (
-        <div className="text-sm text-gray-400 text-center py-8">
-          No risks registered yet. Click "+ Add Risk" to log the first one.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {risks.map((risk) => (
-            <RiskRow
-              key={risk.id}
-              risk={risk}
-              onStatusChange={(riskId, status) => updateRisk.mutate({ riskId, status })}
-            />
-          ))}
-        </div>
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
+          {/* Filters */}
+          <div className="flex gap-3 overflow-x-auto">
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">Category</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="border border-gray-300 rounded px-2 py-1 text-xs"
+              >
+                <option value="all">All Categories</option>
+                {CATEGORIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 block mb-1">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="border border-gray-300 rounded px-2 py-1 text-xs"
+              >
+                <option value="all">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="mitigated">Mitigated</option>
+                <option value="accepted">Accepted</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Risk List */}
+          {filteredRisks.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-8">
+              {risks.length === 0
+                ? 'No risks registered yet. Click "+ Add Risk" to log the first one.'
+                : 'No risks match the current filters.'}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredRisks.map((risk) => (
+                <RiskRow
+                  key={risk.id}
+                  risk={risk}
+                  onStatusChange={(riskId, status) => updateRisk.mutate({ riskId, status })}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'matrix' && (
+        <>
+          {risks.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-8">
+              No risks to display. Add risks to see the matrix.
+            </div>
+          ) : (
+            <RiskMatrix risks={risks} />
+          )}
+        </>
+      )}
+
+      {activeTab === 'list' && (
+        <>
+          {/* Compact List View */}
+          {risks.length === 0 ? (
+            <div className="text-sm text-gray-400 text-center py-8">
+              No risks registered yet.
+            </div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600 text-left border-b border-gray-200">
+                    <th className="px-3 py-2">Title</th>
+                    <th className="px-3 py-2">Category</th>
+                    <th className="px-3 py-2">Likelihood</th>
+                    <th className="px-3 py-2">Impact</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Owner</th>
+                    <th className="px-3 py-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {risks.map((risk) => {
+                    const severity = getRiskSeverity(risk.likelihood, risk.impact);
+                    return (
+                      <tr key={risk.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium">{risk.title}</td>
+                        <td className="px-3 py-2">{risk.category}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs ${IMPACT_COLORS[risk.likelihood]}`}>
+                            {risk.likelihood}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs ${IMPACT_COLORS[risk.impact]}`}>
+                            {risk.impact}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${SEVERITY_COLORS[severity]}`}>
+                            {severity}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">{risk.owner ?? '—'}</td>
+                        <td className="px-3 py-2 text-gray-500">
+                          {new Date(risk.createdAt).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

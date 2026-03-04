@@ -12,7 +12,8 @@
     "typecheck": "turbo run typecheck",
     "dev": "turbo run dev --parallel",
     "db:migrate": "pnpm --filter @v3grand/db migrate",
-    "db:seed": "pnpm --filter @v3grand/db seed"
+    "db:seed": "pnpm --filter @v3grand/db seed",
+    "migrate:supabase": "pnpm --filter @v3grand/db migrate:supabase"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

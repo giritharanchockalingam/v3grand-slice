@@ -24,14 +24,40 @@ export interface Deal {
   updatedAt: string;
 }
 
+export interface GeoLocation {
+  city: string;
+  state: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  distanceToAirportKm: number;
+}
+
+export interface LandArea {
+  sqft: number;
+  acres: number;
+}
+
+export interface GrossBUA {
+  phase1Sqft: number;
+  phase2Sqft: number;
+  totalSqft: number;
+}
+
+export interface RoomType {
+  name: string;
+  count: number;
+  sqft: number;
+  adrPremium: number;  // multiplier vs base ADR
+}
+
 export interface Property {
-  location: {
-    city: string;
-    state: string;
-    country: string;
-    distanceToAirportKm: number;
-  };
+  location: GeoLocation;
+  landArea: LandArea;
+  grossBUA: GrossBUA;
   keys: { phase1: number; phase2: number; total: number };
+  roomTypes: RoomType[];
+  amenities: string[];
   starRating: 3 | 4 | 5;
 }
 
@@ -48,12 +74,35 @@ export interface Partner {
   commitmentCr: number;
 }
 
+export interface Segment {
+  name: string;
+  pctMix: number;           // % of room nights
+  adrPremium: number;       // multiplier vs base ADR
+  seasonality: number[];    // 12 monthly multipliers
+}
+
+export interface Seasonality {
+  month: number;            // 1-12
+  multiplier: number;       // e.g., 0.8 for off-season, 1.2 for peak
+}
+
+export interface CompSet {
+  name: string;
+  keys: number;
+  adr: number;
+  occ: number;
+  revpar: number;
+}
+
 export interface MarketAssumptions {
+  segments: Segment[];
   occupancyRamp: number[];       // year 0..9
   adrBase: number;               // INR, year-1 blended ADR
   adrStabilized: number;         // INR, stabilized ADR
   adrGrowthRate: number;         // annual growth, e.g. 0.05
   revenueMix: { rooms: number; fb: number; banquet: number; other: number };
+  seasonality: Seasonality[];    // 12 monthly multipliers
+  compSet: CompSet[];
 }
 
 export interface FinancialAssumptions {
@@ -63,37 +112,64 @@ export interface FinancialAssumptions {
   debtRatio: number;
   debtInterestRate: number;
   debtTenorYears: number;
+  exitCapRate: number;
   exitMultiple: number;
   taxRate: number;
   inflationRate: number;
   managementFeePct: number;
   incentiveFeePct: number;
   ffAndEReservePct: number;
+  workingCapitalDays: number;
   targetIRR: number;
+  targetEquityMultiple: number;
+  targetDSCR: number;
 }
 
-export interface CapexPlan {
-  phase1: { totalBudgetCr: number; items: CapexLineItem[] };
-  phase2: { totalBudgetCr: number; items: CapexLineItem[] };
-  contingencyPct: number;
-}
+export type CapexCategory = 'land' | 'structure' | 'mep' | 'interiors' | 'ffne' | 'pre-opening' | 'contingency';
+export type CapexCurveType = 's-curve' | 'linear' | 'front-loaded' | 'back-loaded';
 
 export interface CapexLineItem {
   id: string;
   costCode: string;
   description: string;
-  category: string;
+  category: CapexCategory;
   budgetAmount: number;
+  committedAmount: number;
+  spentAmount: number;
+  forecastAmount: number;
+  startMonth: number;
+  endMonth: number;
+  curveType: CapexCurveType;
 }
 
-export interface OpexModel {
-  departments: USALIDepartment[];
+export interface CapexPhase {
+  totalBudgetCr: number;
+  items: CapexLineItem[];
+}
+
+export interface CapexPlan {
+  phase1: CapexPhase;
+  phase2: CapexPhase;
+  contingencyPct: number;
+}
+
+export interface FixedCharge {
+  name: string;
+  monthlyAmountCr: number;
 }
 
 export interface USALIDepartment {
   name: string;
   costPctOfRevenue: number;
+  fixedVarSplit: { fixed: number; variable: number };  // both as %, sum to 1.0
   fixedFloorMonthly: number;
+  gmSavingsPct: number;
+}
+
+export interface OpexModel {
+  departments: USALIDepartment[];
+  undistributed: USALIDepartment[];
+  fixedCharges: FixedCharge[];
 }
 
 export interface Scenario {
@@ -103,6 +179,7 @@ export interface Scenario {
   occupancyStabilized: number;
   adrStabilized: number;
   ebitdaMargin: number;
+  mouRealizationPct: number;  // MOU conversion %, 0-1
   phase2Trigger: boolean;
 }
 

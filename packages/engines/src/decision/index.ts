@@ -1,7 +1,7 @@
 // ─── Decision Engine: Gate-Based Recommendation ────────────────────
 // Pure function: (DecisionInput) => DecisionOutput
 // Takes Underwriter, Factor, MC, and Budget outputs; evaluates investment
-// gates; returns verdict with confidence and risk flags.
+// gates; returns verdict with confidence, risk flags, and investor-grade narrative.
 
 import type {
   DecisionInput, DecisionOutput, GateCheck, RecommendationVerdict,
@@ -39,7 +39,7 @@ export function evaluate(input: DecisionInput): DecisionOutput {
 
   // Add Budget gate if in construction and budget data available
   if (budgetResult) {
-    const budgetVariancePct = Math.abs(budgetResult.variancePct);
+    const budgetVariancePct = Math.abs(budgetResult.varianceToCurrent);
     gates.push(
       gate('Budget Variance < 10%',   budgetVariancePct, 0.10, budgetVariancePct < 0.10),
     );
@@ -57,15 +57,13 @@ export function evaluate(input: DecisionInput): DecisionOutput {
   else                       verdict = 'DO-NOT-PROCEED';
 
   // ── Confidence (0-100) ──
-  // Base: passRate * 80. Boost/penalize based on IRR headroom and MC spread.
   const irrHeadroom = pf.irr - fin.wacc;
   const headroomBonus = Math.min(20, Math.max(-20, irrHeadroom * 100));
 
-  // MC spread adjustment: tighter distributions increase confidence
   let mcBonus = 0;
   if (mcResult) {
     const irrIQR = mcResult.irrDistribution.p75 - mcResult.irrDistribution.p25;
-    mcBonus = Math.max(-10, 5 - irrIQR * 50); // Tight spread → positive bonus
+    mcBonus = Math.max(-10, 5 - irrIQR * 50);
   }
 
   const confidence = Math.round(Math.min(100, Math.max(0, passRate * 80 + headroomBonus + mcBonus)));
@@ -85,21 +83,338 @@ export function evaluate(input: DecisionInput): DecisionOutput {
   if (budgetResult && budgetResult.overallStatus === 'RED') riskFlags.push('Budget variance in RED zone');
   if (budgetResult && budgetResult.alerts.some(a => a.includes('BUDGET OVERRUN'))) riskFlags.push('Total budget overrun detected');
 
-  // ── Explanation ──
+  // ── Top Drivers (3 strongest factors supporting the verdict) ──
+  const topDrivers = computeTopDrivers(gates, pf, fin, factorResult, mcResult);
+
+  // ── Top Risks (3 most critical concerns) ──
+  const topRisks = computeTopRisks(gates, pf, fin, riskFlags, mcResult, budgetResult);
+
+  // ── Flip Conditions (what must change to flip the verdict) ──
+  const flipConditions = computeFlipConditions(verdict, gates, pf, fin, mcResult, passRate);
+
+  // ── Basic Explanation (gate summary) ──
   const failedGates = gates.filter(g => !g.passed).map(g => g.name);
   const explanation = failedGates.length === 0
-    ? `All ${gates.length} investment gates pass. Base-case IRR of ${(pf.irr * 100).toFixed(1)}% exceeds WACC+200bps.` +
-      (mcResult ? ` Monte Carlo P50 IRR: ${(mcResult.irrDistribution.p50 * 100).toFixed(1)}%.` : '') +
+    ? `All ${gates.length} investment gates pass. Base-case IRR of ${pct(pf.irr)} exceeds WACC+200bps.` +
+      (mcResult ? ` Monte Carlo P50 IRR: ${pct(mcResult.irrDistribution.p50)}.` : '') +
       (factorResult ? ` Factor composite: ${factorResult.compositeScore.toFixed(1)}/5.0.` : '') +
       ' Recommend proceeding.'
     : `${passCount}/${gates.length} gates pass. Failed: ${failedGates.join('; ')}. ` +
-      `Base IRR ${(pf.irr * 100).toFixed(1)}% vs WACC ${(fin.wacc * 100).toFixed(1)}%. ` +
-      (mcResult ? `P(NPV<0) = ${(mcResult.probNpvNegative * 100).toFixed(1)}%. ` : '') +
+      `Base IRR ${pct(pf.irr)} vs WACC ${pct(fin.wacc)}. ` +
+      (mcResult ? `P(NPV<0) = ${pct(mcResult.probNpvNegative)}. ` : '') +
       `Verdict: ${verdict} at ${confidence} confidence.`;
 
-  return { verdict, confidence, gateResults: gates, explanation, isFlip, riskFlags };
+  // ── Investor-Grade Narrative (2-3 sentence summary for non-technical audience) ──
+  const narrative = composeNarrative(verdict, confidence, pf, fin, gates, mcResult, factorResult, budgetResult, riskFlags, isFlip, prevVerdict);
+
+  return { verdict, confidence, gateResults: gates, explanation, isFlip, riskFlags, topDrivers, topRisks, flipConditions, narrative };
 }
 
+// ─── Helper: Build gate check ──
 function gate(name: string, actual: number, threshold: number, passed: boolean): GateCheck {
   return { name, actual: Math.round(actual * 10000) / 10000, threshold, passed };
+}
+
+// ─── Helper: Format percentage ──
+function pct(v: number): string {
+  return `${(v * 100).toFixed(1)}%`;
+}
+
+// ─── Helper: Format currency in Cr ──
+function crore(v: number): string {
+  return `₹${(v / 10_000_000).toFixed(1)} Cr`;
+}
+
+// ─── Compute Top 3 Drivers ──
+function computeTopDrivers(
+  gates: GateCheck[],
+  pf: DecisionInput['proformaResult'],
+  fin: DecisionInput['deal']['financialAssumptions'],
+  factorResult: DecisionInput['factorResult'],
+  mcResult: DecisionInput['mcResult'],
+): string[] {
+  const drivers: { text: string; strength: number }[] = [];
+
+  // Passed gates with quantified headroom
+  const passedGates = gates.filter(g => g.passed);
+
+  for (const g of passedGates) {
+    let headroom = 0;
+    if (g.threshold !== 0) {
+      headroom = g.name.includes('<=') || g.name.includes('< ')
+        ? (g.threshold - g.actual) / g.threshold  // lower-is-better gates
+        : (g.actual - g.threshold) / g.threshold; // higher-is-better gates
+    }
+    drivers.push({ text: formatDriverText(g), strength: Math.abs(headroom) });
+  }
+
+  // IRR headroom as a standalone driver
+  const irrHeadroom = pf.irr - fin.wacc;
+  if (irrHeadroom > 0.02) {
+    drivers.push({
+      text: `IRR of ${pct(pf.irr)} provides ${((irrHeadroom) * 100).toFixed(0)}bps cushion above WACC`,
+      strength: irrHeadroom * 5,
+    });
+  }
+
+  // Factor score as driver
+  if (factorResult && factorResult.compositeScore >= 3.5) {
+    drivers.push({
+      text: `Strong factor score of ${factorResult.compositeScore.toFixed(1)}/5.0 reflects favorable market and asset conditions`,
+      strength: (factorResult.compositeScore - 3.0) / 2.0,
+    });
+  }
+
+  // MC confidence as driver
+  if (mcResult && mcResult.probNpvNegative < 0.10) {
+    drivers.push({
+      text: `Monte Carlo shows only ${pct(mcResult.probNpvNegative)} probability of negative NPV across 5,000 simulations`,
+      strength: (0.20 - mcResult.probNpvNegative) * 5,
+    });
+  }
+
+  // Sort by strength and take top 3
+  drivers.sort((a, b) => b.strength - a.strength);
+  return drivers.slice(0, 3).map(d => d.text);
+}
+
+function formatDriverText(g: GateCheck): string {
+  if (g.name.includes('IRR > WACC'))     return `Base IRR of ${pct(g.actual)} clears WACC+200bps hurdle (${pct(g.threshold)})`;
+  if (g.name.includes('NPV'))            return `Positive NPV of ${crore(g.actual)} confirms value creation`;
+  if (g.name.includes('Equity Multiple'))return `${g.actual.toFixed(2)}x equity multiple exceeds ${g.threshold}x minimum`;
+  if (g.name.includes('DSCR'))           return `Average DSCR of ${g.actual.toFixed(2)}x provides adequate debt coverage`;
+  if (g.name.includes('Target IRR'))     return `IRR of ${pct(g.actual)} beats target return of ${pct(g.threshold)}`;
+  if (g.name.includes('Payback'))        return `Capital recovery in year ${g.actual} within the ${g.threshold}-year threshold`;
+  if (g.name.includes('P(NPV'))          return `Low downside risk: only ${pct(g.actual)} chance of capital loss`;
+  if (g.name.includes('MC P10'))         return `Even in the worst 10% of scenarios, IRR is ${pct(g.actual)}`;
+  if (g.name.includes('Factor'))         return `Factor composite score of ${g.actual.toFixed(1)} reflects strong fundamentals`;
+  if (g.name.includes('Budget'))         return `Construction budget variance at ${pct(g.actual)}, well within tolerance`;
+  return `${g.name}: actual ${g.actual.toFixed(2)} vs threshold ${g.threshold.toFixed(2)}`;
+}
+
+// ─── Compute Top 3 Risks ──
+function computeTopRisks(
+  gates: GateCheck[],
+  pf: DecisionInput['proformaResult'],
+  fin: DecisionInput['deal']['financialAssumptions'],
+  riskFlags: string[],
+  mcResult: DecisionInput['mcResult'],
+  budgetResult: DecisionInput['budgetResult'],
+): string[] {
+  const risks: { text: string; severity: number }[] = [];
+
+  // Failed gates as risks
+  const failedGates = gates.filter(g => !g.passed);
+  for (const g of failedGates) {
+    let shortfall = 0;
+    if (g.threshold !== 0) {
+      shortfall = g.name.includes('<=') || g.name.includes('< ')
+        ? (g.actual - g.threshold) / g.threshold
+        : (g.threshold - g.actual) / g.threshold;
+    }
+    risks.push({ text: formatRiskText(g), severity: Math.abs(shortfall) });
+  }
+
+  // DSCR tightness (even if passing)
+  if (pf.avgDSCR < 1.4 && pf.avgDSCR >= 1.3) {
+    risks.push({
+      text: `DSCR of ${pf.avgDSCR.toFixed(2)}x is passing but thin — limited buffer against revenue shortfall`,
+      severity: 0.3,
+    });
+  }
+
+  // MC tail risk
+  if (mcResult && mcResult.probIrrBelowWacc > 0.15) {
+    risks.push({
+      text: `${pct(mcResult.probIrrBelowWacc)} probability that returns fall below cost of capital in Monte Carlo simulation`,
+      severity: mcResult.probIrrBelowWacc,
+    });
+  }
+
+  // MC spread risk
+  if (mcResult) {
+    const spread = mcResult.irrDistribution.p90 - mcResult.irrDistribution.p10;
+    if (spread > 0.15) {
+      risks.push({
+        text: `Wide return uncertainty: P10-P90 IRR range of ${((spread) * 100).toFixed(0)}bps indicates high sensitivity to assumptions`,
+        severity: spread,
+      });
+    }
+  }
+
+  // Budget overrun risk
+  if (budgetResult && budgetResult.overallStatus !== 'GREEN') {
+    const varPct = Math.abs(budgetResult.varianceToCurrent);
+    risks.push({
+      text: `Construction budget ${budgetResult.overallStatus === 'RED' ? 'significantly' : 'moderately'} over — ${pct(varPct)} variance threatens returns`,
+      severity: budgetResult.overallStatus === 'RED' ? 0.9 : 0.5,
+    });
+  }
+
+  // Payback duration
+  if (pf.paybackYear > 7) {
+    risks.push({
+      text: `Extended capital lockup of ${pf.paybackYear} years increases exposure to market cycle risk`,
+      severity: (pf.paybackYear - 6) * 0.2,
+    });
+  }
+
+  // Sort by severity and take top 3
+  risks.sort((a, b) => b.severity - a.severity);
+  return risks.slice(0, 3).map(r => r.text);
+}
+
+function formatRiskText(g: GateCheck): string {
+  if (g.name.includes('IRR > WACC'))     return `IRR of ${pct(g.actual)} falls short of WACC+200bps hurdle (${pct(g.threshold)}) — inadequate risk-adjusted return`;
+  if (g.name.includes('NPV'))            return `Negative NPV of ${crore(g.actual)} — project destroys value at current assumptions`;
+  if (g.name.includes('Equity Multiple'))return `Equity multiple of ${g.actual.toFixed(2)}x below ${g.threshold}x minimum — insufficient capital appreciation`;
+  if (g.name.includes('DSCR'))           return `DSCR of ${g.actual.toFixed(2)}x below ${g.threshold}x — debt service coverage is insufficient`;
+  if (g.name.includes('Target IRR'))     return `IRR of ${pct(g.actual)} misses the ${pct(g.threshold)} target return — doesn't meet fund mandate`;
+  if (g.name.includes('Payback'))        return `Payback in year ${g.actual} exceeds ${g.threshold}-year limit — capital tied up too long`;
+  if (g.name.includes('P(NPV'))          return `${pct(g.actual)} probability of capital loss exceeds ${pct(g.threshold)} comfort level`;
+  if (g.name.includes('MC P10'))         return `Tail risk concern: P10 IRR of ${pct(g.actual)} is below ${pct(g.threshold)} minimum`;
+  if (g.name.includes('Factor'))         return `Factor score of ${g.actual.toFixed(1)} signals weak market or asset conditions`;
+  if (g.name.includes('Budget'))         return `Budget variance of ${pct(g.actual)} exceeds ${pct(g.threshold)} tolerance — cost overrun risk`;
+  return `${g.name} failed: actual ${g.actual.toFixed(2)} vs required ${g.threshold.toFixed(2)}`;
+}
+
+// ─── Compute Flip Conditions ──
+function computeFlipConditions(
+  verdict: RecommendationVerdict,
+  gates: GateCheck[],
+  pf: DecisionInput['proformaResult'],
+  fin: DecisionInput['deal']['financialAssumptions'],
+  mcResult: DecisionInput['mcResult'],
+  passRate: number,
+): string[] {
+  const conditions: string[] = [];
+
+  if (verdict === 'INVEST') {
+    // Already best verdict — show what could degrade it
+    conditions.push(`Maintain IRR above ${pct(fin.wacc + 0.02)} (currently ${pct(pf.irr)} with ${((pf.irr - fin.wacc - 0.02) * 100).toFixed(0)}bps cushion)`);
+    if (mcResult) {
+      conditions.push(`Keep P(NPV<0) below 20% (currently ${pct(mcResult.probNpvNegative)})`);
+    }
+    conditions.push(`Verdict is secure while ≥${Math.ceil(gates.length * 0.85)} of ${gates.length} gates pass (currently ${gates.filter(g => g.passed).length})`);
+  } else {
+    // Show what must improve to reach the next better verdict
+    const failedGates = gates.filter(g => !g.passed);
+    const nextTarget = getNextBetterVerdict(verdict);
+    const nextThreshold = getPassRateForVerdict(nextTarget);
+    const gatesNeeded = Math.ceil(gates.length * nextThreshold) - gates.filter(g => g.passed).length;
+
+    if (gatesNeeded > 0) {
+      conditions.push(`Need ${gatesNeeded} more gate${gatesNeeded > 1 ? 's' : ''} to pass for ${nextTarget} (requires ${Math.ceil(nextThreshold * 100)}% pass rate)`);
+    }
+
+    // Specific actionable improvements
+    for (const g of failedGates.slice(0, 3)) {
+      conditions.push(formatFlipAction(g, pf, fin));
+    }
+  }
+
+  return conditions.slice(0, 4);
+}
+
+function getNextBetterVerdict(v: RecommendationVerdict): RecommendationVerdict {
+  switch (v) {
+    case 'DO-NOT-PROCEED': return 'EXIT';
+    case 'EXIT': return 'DE-RISK';
+    case 'DE-RISK': return 'HOLD';
+    case 'HOLD': return 'INVEST';
+    default: return 'INVEST';
+  }
+}
+
+function getPassRateForVerdict(v: RecommendationVerdict): number {
+  switch (v) {
+    case 'INVEST': return 0.85;
+    case 'HOLD': return 0.70;
+    case 'DE-RISK': return 0.50;
+    case 'EXIT': return 0.30;
+    default: return 0;
+  }
+}
+
+function formatFlipAction(g: GateCheck, pf: any, fin: any): string {
+  if (g.name.includes('IRR > WACC'))     return `Increase IRR from ${pct(g.actual)} to above ${pct(g.threshold)} (close ${((g.threshold - g.actual) * 100).toFixed(0)}bps gap)`;
+  if (g.name.includes('NPV'))            return `Turn NPV positive (currently ${crore(g.actual)}) through revenue uplift or cost reduction`;
+  if (g.name.includes('Equity Multiple'))return `Raise equity multiple from ${g.actual.toFixed(2)}x to above ${g.threshold}x`;
+  if (g.name.includes('DSCR'))           return `Improve DSCR from ${g.actual.toFixed(2)}x to above ${g.threshold}x via revenue growth or debt restructuring`;
+  if (g.name.includes('Target IRR'))     return `Close the ${((g.threshold - g.actual) * 100).toFixed(0)}bps gap between IRR (${pct(g.actual)}) and target (${pct(g.threshold)})`;
+  if (g.name.includes('Payback'))        return `Reduce payback from year ${g.actual} to within ${g.threshold} years through accelerated cash flows`;
+  if (g.name.includes('P(NPV'))          return `Reduce downside risk: lower P(NPV<0) from ${pct(g.actual)} to below ${pct(g.threshold)}`;
+  if (g.name.includes('MC P10'))         return `Improve tail-risk IRR from ${pct(g.actual)} to above ${pct(g.threshold)}`;
+  if (g.name.includes('Factor'))         return `Address weak market/asset factors to raise composite score above ${g.threshold.toFixed(1)}`;
+  if (g.name.includes('Budget'))         return `Contain construction costs to bring variance below ${pct(g.threshold)}`;
+  return `Improve ${g.name} from ${g.actual.toFixed(2)} to meet threshold of ${g.threshold.toFixed(2)}`;
+}
+
+// ─── Compose Investor-Grade Narrative ──
+function composeNarrative(
+  verdict: RecommendationVerdict,
+  confidence: number,
+  pf: DecisionInput['proformaResult'],
+  fin: DecisionInput['deal']['financialAssumptions'],
+  gates: GateCheck[],
+  mcResult: DecisionInput['mcResult'],
+  factorResult: DecisionInput['factorResult'],
+  budgetResult: DecisionInput['budgetResult'],
+  riskFlags: string[],
+  isFlip: boolean,
+  prevVerdict: RecommendationVerdict | null,
+): string {
+  const passCount = gates.filter(g => g.passed).length;
+  const totalGates = gates.length;
+  const parts: string[] = [];
+
+  // Opening: verdict context
+  if (isFlip && prevVerdict) {
+    parts.push(`This deal has moved from ${prevVerdict} to ${verdict} — a significant shift driven by changes in the underlying metrics.`);
+  } else {
+    switch (verdict) {
+      case 'INVEST':
+        parts.push(`This deal clears all key investment thresholds, passing ${passCount} of ${totalGates} gates with ${confidence}% confidence.`);
+        break;
+      case 'HOLD':
+        parts.push(`This deal shows promise but ${totalGates - passCount} gate${totalGates - passCount > 1 ? 's' : ''} remain${totalGates - passCount === 1 ? 's' : ''} unmet, warranting continued monitoring before commitment.`);
+        break;
+      case 'DE-RISK':
+        parts.push(`Several investment criteria are not met (${passCount}/${totalGates} passing), indicating the deal requires restructuring or improved terms before proceeding.`);
+        break;
+      case 'EXIT':
+        parts.push(`This deal fails a majority of investment gates (${passCount}/${totalGates} passing) and poses material downside risk in its current structure.`);
+        break;
+      case 'DO-NOT-PROCEED':
+        parts.push(`Fundamental investment criteria are not met (${passCount}/${totalGates} gates passing). This deal does not support capital deployment at current terms.`);
+        break;
+    }
+  }
+
+  // Middle: key numbers
+  const irrVsWacc = pf.irr - fin.wacc;
+  if (irrVsWacc > 0) {
+    parts.push(`The base-case IRR of ${pct(pf.irr)} exceeds the ${pct(fin.wacc)} cost of capital by ${(irrVsWacc * 100).toFixed(0)} basis points, with a ${pf.equityMultiple.toFixed(2)}x equity multiple and payback in year ${pf.paybackYear}.`);
+  } else {
+    parts.push(`The base-case IRR of ${pct(pf.irr)} falls ${(Math.abs(irrVsWacc) * 100).toFixed(0)} basis points short of the ${pct(fin.wacc)} cost of capital, with a ${pf.equityMultiple.toFixed(2)}x equity multiple and payback in year ${pf.paybackYear}.`);
+  }
+
+  // Closing: MC or risk context
+  if (mcResult) {
+    if (mcResult.probNpvNegative < 0.10) {
+      parts.push(`Monte Carlo simulation across 5,000 scenarios confirms limited downside with only ${pct(mcResult.probNpvNegative)} probability of capital loss.`);
+    } else if (mcResult.probNpvNegative < 0.25) {
+      parts.push(`Monte Carlo analysis flags moderate downside risk — ${pct(mcResult.probNpvNegative)} of scenarios result in negative NPV.`);
+    } else {
+      parts.push(`Monte Carlo analysis reveals significant downside exposure — ${pct(mcResult.probNpvNegative)} of scenarios result in capital loss, warranting extreme caution.`);
+    }
+  } else if (riskFlags.length > 0) {
+    parts.push(`Key risk factors include ${riskFlags.slice(0, 2).join(' and ').toLowerCase()}.`);
+  }
+
+  if (budgetResult && budgetResult.overallStatus === 'RED') {
+    parts.push(`Construction budget is currently in RED status which is actively pressuring returns.`);
+  }
+
+  return parts.join(' ');
 }

@@ -9,8 +9,16 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "composite": true
-  }
+    "composite": true,
+    "noEmit": true
+  },
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/db" },
+    { "path": "packages/engines" },
+    { "path": "packages/mcp" },
+    { "path": "packages/api" },
+    { "path": "packages/ui" }
+  ]
 }

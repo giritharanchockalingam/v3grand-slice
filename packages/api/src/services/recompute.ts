@@ -1,6 +1,9 @@
 // ─── Recompute Service ──────────────────────────────────────────────
 // Full engine cascade: Factor → Underwriter(×3) → MC → Budget → S-Curve → Decision.
 // Runs all 3 scenarios (bear, base, bull) and persists results separately.
+//
+// G-2/F-3: Every engine result is cryptographically hash-chained.
+// G-10/F-4: Every engine result is tagged with its model version.
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type {
@@ -12,11 +15,15 @@ import {
   buildProForma, evaluateDecision,
   scoreFactors, runMonteCarlo, analyzeBudget, distributeSCurve,
 } from '@v3grand/engines';
+import { computeContentHash, MODEL_VERSIONS } from '@v3grand/engines/integrity/hash-chain.js';
 import {
   getDealById, insertEngineResult, getLatestEngineResultByScenario,
   insertRecommendation, getLatestRecommendationByScenario, insertAuditEntry,
   getBudgetLinesByDeal, getChangeOrdersByDeal, getRFIsByDeal, getMilestonesByDeal,
+  getLatestContentHash,
 } from '@v3grand/db';
+import { emitDealEvent } from '../sse-hub.js';
+import { getMarketDataService } from '@v3grand/mcp';
 
 export interface RecomputeResult {
   ok: boolean;               // false when cascade partially or fully failed
@@ -26,11 +33,53 @@ export interface RecomputeResult {
     verdict: string;
     confidence: number;
     explanation: string;
+    narrative?: string;
+    topDrivers?: string[];
+    topRisks?: string[];
+    flipConditions?: string[];
     isFlip: boolean;
   } | null;
   factorResult?: FactorScoreOutput;
   mcResult?: MCOutput;
   budgetResult?: BudgetAnalysisOutput;
+}
+
+// ── Helper: insert engine result with hash chain ──
+// Fetches the previous hash, computes the content hash, and persists.
+async function insertHashedEngineResult(
+  db: PostgresJsDatabase,
+  row: {
+    dealId: string;
+    engineName: string;
+    scenarioKey?: string;
+    input: Record<string, unknown>;
+    output: Record<string, unknown>;
+    durationMs: number;
+    triggeredBy: string;
+  },
+) {
+  const modelVersion = MODEL_VERSIONS[row.engineName as keyof typeof MODEL_VERSIONS] ?? '1.0.0';
+
+  // Fetch the previous hash in this chain
+  const previousHash = await getLatestContentHash(
+    db, row.dealId, row.engineName, row.scenarioKey,
+  );
+
+  // Compute the content hash for this result
+  const contentHash = computeContentHash(previousHash, {
+    engineName: row.engineName,
+    version: 0,  // will be set by insertEngineResult
+    scenarioKey: row.scenarioKey ?? 'base',
+    input: row.input,
+    output: row.output,
+  });
+
+  return insertEngineResult(db, {
+    ...row,
+    contentHash,
+    previousHash,
+    modelVersion,
+  });
 }
 
 /** Reconstitute a Deal object from DB row */
@@ -73,17 +122,35 @@ export async function recomputeDeal(
   }
   const deal = reconstituteDeal(dealRow);
 
-  // ── 2. Factor Engine (deal-level, not per-scenario) ──
+  // ── 2. Fetch live macro data for Factor engine ──
+  let macroIndicators: import('@v3grand/core').MacroIndicators | undefined;
+  try {
+    const marketService = getMarketDataService();
+    const macro = await marketService.getFactorMacro();
+    macroIndicators = {
+      repoRate: macro.repoRate,
+      cpi: macro.cpi,
+      gdpGrowthRate: macro.gdpGrowthRate,
+      bondYield10Y: macro.bondYield10Y,
+      hotelSupplyGrowthPct: macro.hotelSupplyGrowthPct,
+    };
+    logger.info('recompute.macro_data', { ...ctx, source: macro.source, repoRate: macro.repoRate, cpi: macro.cpi, gdpGrowth: macro.gdpGrowthRate });
+  } catch (err) {
+    logger.warn('recompute.macro_fetch_failed', { ...ctx, error: String(err) });
+    // Factor engine will use its own DEFAULT_MACRO fallback
+  }
+
+  // ── 2b. Factor Engine (deal-level, not per-scenario) ──
   let factorResult: FactorScoreOutput | null = null;
   try {
     const t0 = Date.now();
-    factorResult = scoreFactors({ deal });
+    factorResult = scoreFactors({ deal, macroIndicators });
     const duration = Date.now() - t0;
     logger.info('engine.factor.done', { ...ctx, durationMs: duration, compositeScore: factorResult.compositeScore });
 
-    await insertEngineResult(db, {
+    await insertHashedEngineResult(db, {
       dealId, engineName: 'factor',
-      input: { trigger },
+      input: { trigger } as Record<string, unknown>,
       output: factorResult as unknown as Record<string, unknown>,
       durationMs: duration,
       triggeredBy: trigger,
@@ -93,7 +160,7 @@ export async function recomputeDeal(
       dealId, userId, role: 'system', module: 'factor',
       action: 'engine.completed', entityType: 'engine_result',
       entityId: dealId,
-      diff: { compositeScore: factorResult.compositeScore, requiredReturn: factorResult.requiredReturn },
+      diff: { compositeScore: factorResult.compositeScore, impliedDiscountRate: factorResult.impliedDiscountRate },
     });
   } catch (err) {
     logger.error('engine.factor.failed', { ...ctx, error: String(err) });
@@ -113,9 +180,9 @@ export async function recomputeDeal(
     const uwDuration = Date.now() - t0;
     logger.info('engine.underwriter.done', { ...ctx, scenario: scenarioKey, durationMs: uwDuration, irr: proforma.irr });
 
-    await insertEngineResult(db, {
+    await insertHashedEngineResult(db, {
       dealId, engineName: 'underwriter', scenarioKey,
-      input: { scenarioKey },
+      input: { scenarioKey } as Record<string, unknown>,
       output: proforma as unknown as Record<string, unknown>,
       durationMs: uwDuration,
       triggeredBy: trigger,
@@ -157,15 +224,15 @@ export async function recomputeDeal(
     });
     const decDuration = Date.now() - t1;
 
-    await insertEngineResult(db, {
+    await insertHashedEngineResult(db, {
       dealId, engineName: 'decision', scenarioKey,
-      input: { scenarioKey, proformaIrr: proforma.irr },
+      input: { scenarioKey, proformaIrr: proforma.irr } as Record<string, unknown>,
       output: decision as unknown as Record<string, unknown>,
       durationMs: decDuration,
       triggeredBy: trigger,
     });
 
-    // Persist recommendation
+    // Persist recommendation (use narrative for richer explanation)
     await insertRecommendation(db, {
       dealId, scenarioKey,
       verdict: decision.verdict,
@@ -178,7 +245,7 @@ export async function recomputeDeal(
         avgDSCR: proforma.avgDSCR,
       },
       gateResults: decision.gateResults,
-      explanation: decision.explanation,
+      explanation: decision.narrative || decision.explanation,
       previousVerdict: prevRec?.verdict ?? null,
       isFlip: decision.isFlip,
     });
@@ -207,9 +274,9 @@ export async function recomputeDeal(
     const duration = Date.now() - t0;
     logger.info('engine.montecarlo.done', { ...ctx, durationMs: duration, irrP50: mcResult.irrDistribution.p50 });
 
-    await insertEngineResult(db, {
+    await insertHashedEngineResult(db, {
       dealId, engineName: 'montecarlo',
-      input: { iterations: 5000, trigger },
+      input: { iterations: 5000, trigger } as Record<string, unknown>,
       output: mcResult as unknown as Record<string, unknown>,
       durationMs: duration,
       triggeredBy: trigger,
@@ -308,9 +375,9 @@ export async function recomputeDeal(
       const duration = Date.now() - t0;
       logger.info('engine.budget.done', { ...ctx, durationMs: duration, status: budgetResult.overallStatus });
 
-      await insertEngineResult(db, {
+      await insertHashedEngineResult(db, {
         dealId, engineName: 'budget',
-        input: { asOfMonth: deal.currentMonth, trigger },
+        input: { asOfMonth: deal.currentMonth, trigger } as Record<string, unknown>,
         output: budgetResult as unknown as Record<string, unknown>,
         durationMs: duration,
         triggeredBy: trigger,
@@ -322,7 +389,7 @@ export async function recomputeDeal(
         entityId: dealId,
         diff: {
           overallStatus: budgetResult.overallStatus,
-          variancePct: budgetResult.variancePct,
+          varianceToCurrent: budgetResult.varianceToCurrent,
           alertCount: budgetResult.alerts.length,
         },
       });
@@ -347,9 +414,9 @@ export async function recomputeDeal(
       const scurveResult = distributeSCurve({ items: scurveItems, totalMonths: 24 });
       const duration = Date.now() - t0;
 
-      await insertEngineResult(db, {
+      await insertHashedEngineResult(db, {
         dealId, engineName: 'scurve',
-        input: { itemCount: scurveItems.length, totalMonths: 24, trigger },
+        input: { itemCount: scurveItems.length, totalMonths: 24, trigger } as Record<string, unknown>,
         output: scurveResult as unknown as Record<string, unknown>,
         durationMs: duration,
         triggeredBy: trigger,
@@ -387,7 +454,16 @@ export async function recomputeDeal(
       });
       const decDuration = Date.now() - t0;
 
-      // Persist the enriched recommendation
+      // Persist the full decision engine output (includes narrative, topDrivers, topRisks, flipConditions)
+      await insertHashedEngineResult(db, {
+        dealId, engineName: 'decision', scenarioKey: 'base',
+        input: { trigger: `${trigger}.enriched`, hasMC: !!mcResult, hasBudget: !!budgetResult, hasFactor: !!factorResult } as Record<string, unknown>,
+        output: fullDecision as unknown as Record<string, unknown>,
+        durationMs: decDuration,
+        triggeredBy: `${trigger}.enriched`,
+      });
+
+      // Persist the enriched recommendation (explanation = narrative for rich display)
       await insertRecommendation(db, {
         dealId, scenarioKey: 'base',
         verdict: fullDecision.verdict,
@@ -400,7 +476,7 @@ export async function recomputeDeal(
           avgDSCR: baseProforma.avgDSCR,
         },
         gateResults: fullDecision.gateResults,
-        explanation: fullDecision.explanation,
+        explanation: fullDecision.narrative || fullDecision.explanation,
         previousVerdict: prevRec?.verdict ?? null,
         isFlip: fullDecision.isFlip,
       });
@@ -416,6 +492,23 @@ export async function recomputeDeal(
   const ok = baseProforma !== null && baseRecommendation !== null && scenarioErrors === 0;
   logger.info('recompute.done', { ...ctx, durationMs: totalDuration, ok, scenarioErrors });
 
+  // ── Emit SSE events for real-time dashboard refresh ──
+  emitDealEvent(dealId, 'recompute.complete', {
+    ok,
+    durationMs: totalDuration,
+    verdict: baseRecommendation?.verdict ?? null,
+    confidence: baseRecommendation?.confidence ?? null,
+    isFlip: baseRecommendation?.isFlip ?? false,
+    trigger,
+  });
+  if (baseRecommendation?.isFlip) {
+    emitDealEvent(dealId, 'recommendation.flipped', {
+      from: baseRecommendation?.flipConditions?.[0] ?? 'unknown',
+      to: baseRecommendation.verdict,
+      confidence: baseRecommendation.confidence,
+    });
+  }
+
   return {
     ok,
     error: ok ? undefined : 'One or more engines failed during recompute — existing results preserved',
@@ -424,6 +517,10 @@ export async function recomputeDeal(
       verdict: baseRecommendation.verdict,
       confidence: baseRecommendation.confidence,
       explanation: baseRecommendation.explanation,
+      narrative: baseRecommendation.narrative,
+      topDrivers: baseRecommendation.topDrivers,
+      topRisks: baseRecommendation.topRisks,
+      flipConditions: baseRecommendation.flipConditions,
       isFlip: baseRecommendation.isFlip,
     } : null,
     factorResult: factorResult ?? undefined,

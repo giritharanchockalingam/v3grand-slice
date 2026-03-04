@@ -9,11 +9,14 @@ import type {
 import { clamp } from '../_shared/distributions.js';
 
 // ── Default macro indicators (India baseline) ──
+// Updated 2026-03-04 from RBI MPC (Feb 7, 2026), MOSPI (Feb 12, 2026)
+// These are ONLY used when MarketDataService is completely unavailable.
+// In normal operation, live values are passed via macroIndicators param.
 const DEFAULT_MACRO: MacroIndicators = {
-  repoRate: 0.065,
-  cpi: 0.05,
-  gdpGrowthRate: 0.065,
-  bondYield10Y: 0.072,
+  repoRate: 0.0525,             // RBI repo rate (Feb 2026 MPC)
+  cpi: 0.0275,                  // CPI YoY (Jan 2026, MOSPI)
+  gdpGrowthRate: 0.065,         // GDP FY2024-25 provisional
+  bondYield10Y: 0.0670,         // 10Y G-Sec yield (CCIL, Mar 2026)
   hotelSupplyGrowthPct: 0.03,
 };
 
@@ -37,41 +40,52 @@ export function scoreFactors(input: FactorScoreInput): FactorScoreOutput {
 
   const allFactors = [...globalFactors, ...localFactors, ...assetFactors, ...sponsorFactors];
 
-  // Compute domain averages
-  const domainAvg = (domain: FactorDetail['domain']) => {
+  // Compute domain scores as DomainScoreDetail objects
+  const buildDomainScore = (domain: FactorDetail['domain']) => {
     const domainFactors = allFactors.filter(f => f.domain === domain);
-    if (domainFactors.length === 0) return 3.0;
+    if (domainFactors.length === 0) {
+      return {
+        score: 3.0,
+        weight: DOMAIN_WEIGHTS[domain],
+        factors: [],
+      };
+    }
     const totalWeight = domainFactors.reduce((s, f) => s + f.weight, 0);
-    return domainFactors.reduce((s, f) => s + f.score * (f.weight / totalWeight), 0);
+    const score = round2(domainFactors.reduce((s, f) => s + f.score * (f.weight / totalWeight), 0));
+    return {
+      score,
+      weight: DOMAIN_WEIGHTS[domain],
+      factors: domainFactors,
+    };
   };
 
   const domainScores = {
-    global: round2(domainAvg('global')),
-    local: round2(domainAvg('local')),
-    asset: round2(domainAvg('asset')),
-    sponsor: round2(domainAvg('sponsor')),
+    global: buildDomainScore('global'),
+    local: buildDomainScore('local'),
+    asset: buildDomainScore('asset'),
+    sponsor: buildDomainScore('sponsor'),
   };
 
   // Weighted composite
   const compositeScore = round2(
-    domainScores.global * DOMAIN_WEIGHTS.global +
-    domainScores.local * DOMAIN_WEIGHTS.local +
-    domainScores.asset * DOMAIN_WEIGHTS.asset +
-    domainScores.sponsor * DOMAIN_WEIGHTS.sponsor
+    domainScores.global.score * DOMAIN_WEIGHTS.global +
+    domainScores.local.score * DOMAIN_WEIGHTS.local +
+    domainScores.asset.score * DOMAIN_WEIGHTS.asset +
+    domainScores.sponsor.score * DOMAIN_WEIGHTS.sponsor
   );
 
   // Implied required return: riskFree + (5 - composite) * 3%
   // Higher composite → lower required return. Score of 5 → riskFree + 0%. Score of 1 → riskFree + 12%.
-  const requiredReturn = round4(
+  const impliedDiscountRate = round4(
     deal.financialAssumptions.riskFreeRate + (5 - compositeScore) * 0.03
   );
+  const impliedCapRate = round4(compositeScore * 0.005 + 0.04); // Simple approximation
 
   return {
     compositeScore,
-    requiredReturn,
+    impliedDiscountRate,
+    impliedCapRate,
     domainScores,
-    factors: allFactors,
-    domainWeights: DOMAIN_WEIGHTS,
   };
 }
 

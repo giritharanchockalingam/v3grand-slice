@@ -17,7 +17,8 @@ export interface YearProjection {
   revpar: number;
   roomRevenue: number;
   totalRevenue: number;
-  departmentalCost: number;
+  departmentalProfit: number;
+  undistributedExpenses: number;
   gop: number;
   gopMargin: number;
   ebitda: number;
@@ -69,6 +70,10 @@ export interface DecisionOutput {
   explanation: string;
   isFlip: boolean;
   riskFlags: string[];
+  topDrivers: string[];       // top 3 factors supporting the verdict
+  topRisks: string[];          // top 3 risk concerns
+  flipConditions: string[];    // what must change to flip the verdict
+  narrative: string;           // investor-grade 2-3 sentence summary
 }
 
 // ── Recommendation (persisted) ──
@@ -81,11 +86,22 @@ export interface RecommendationState {
   verdict: RecommendationVerdict;
   confidence: number;
   triggerEvent: string;
+  factorSnapshot?: {
+    compositeScore: number;
+    impliedDiscountRate: number;
+    impliedCapRate: number;
+  };
   proformaSnapshot: {
     irr: number;
     npv: number;
     equityMultiple: number;
-    avgDSCR: number;
+    dscr: number;
+  };
+  mcSnapshot?: {
+    p10Irr: number;
+    p50Irr: number;
+    p90Irr: number;
+    probNpvNeg: number;
   };
   gateResults: GateCheck[];
   explanation: string;
@@ -145,21 +161,21 @@ export interface FactorScoreInput {
   macroIndicators?: MacroIndicators;
 }
 
-export interface FactorScoreOutput {
-  compositeScore: number;     // 1.0 - 5.0
-  requiredReturn: number;     // implied discount rate
-  domainScores: {
-    global: number;
-    local: number;
-    asset: number;
-    sponsor: number;
-  };
+export interface DomainScoreDetail {
+  score: number;         // 1.0 - 5.0
+  weight: number;        // 0-1, sum of all = 1.0
   factors: FactorDetail[];
-  domainWeights: {
-    global: number;
-    local: number;
-    asset: number;
-    sponsor: number;
+}
+
+export interface FactorScoreOutput {
+  compositeScore: number;        // 1.0 - 5.0
+  impliedDiscountRate: number;   // discount rate derived from composite score
+  impliedCapRate: number;        // cap rate derived from composite score
+  domainScores: {
+    global: DomainScoreDetail;
+    local: DomainScoreDetail;
+    asset: DomainScoreDetail;
+    sponsor: DomainScoreDetail;
   };
 }
 
@@ -220,14 +236,47 @@ export interface BudgetLineVariance {
   status: 'GREEN' | 'AMBER' | 'RED';
 }
 
+export interface BudgetVarianceByCategory {
+  category: string;
+  totalBudget: number;
+  totalSpent: number;
+  totalCommitted: number;
+  totalForecast: number;
+  variancePct: number;
+  status: 'GREEN' | 'AMBER' | 'RED';
+}
+
+export interface BudgetVarianceByCostCode {
+  costCode: string;
+  description: string;
+  totalBudget: number;
+  totalSpent: number;
+  variancePct: number;
+  status: 'GREEN' | 'AMBER' | 'RED';
+}
+
+export interface SCurveDataPoint {
+  month: number;
+  planned: number;
+  actual: number;
+  forecast: number;
+  cumulativePlanned: number;
+  cumulativeActual: number;
+  cumulativeForecast: number;
+}
+
 export interface BudgetAnalysisOutput {
+  asOfMonth: number;
   totalBudget: number;
   totalCommitted: number;
   totalSpent: number;
   totalForecast: number;
   varianceToOriginal: number;
-  variancePct: number;
-  lineVariances: BudgetLineVariance[];
+  varianceToCurrent: number;
+  byCategory: BudgetVarianceByCategory[];
+  byCostCode: BudgetVarianceByCostCode[];
+  sCurveData: SCurveDataPoint[];
+  lineVariances?: BudgetLineVariance[];
   alerts: string[];
   overallStatus: 'GREEN' | 'AMBER' | 'RED';
 }

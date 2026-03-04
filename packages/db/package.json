@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@v3grand/core": "workspace:*",
+    "dotenv": "^16.6.1",
     "drizzle-orm": "^0.33.0",
     "postgres": "^3.4.4"
   },
@@ -18,6 +19,7 @@
   },
   "scripts": {
     "seed": "tsx src/seed/run.ts",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "migrate:supabase": "tsx src/migrate-supabase.ts"
   }
 }

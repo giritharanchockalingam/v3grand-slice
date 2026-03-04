@@ -1,0 +1,21 @@
+
+> build
+> turbo run build
+
+Turborepo did not find the correct binary for your platform.
+We will attempt to install it now.
+Installation has succeeded.
+
+Attention:
+Turborepo now collects completely anonymous telemetry regarding usage.
+This information is used to shape the Turborepo roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://turborepo.dev/docs/telemetry
+
+• turbo 2.8.13
+• Packages in scope: @v3grand/api, @v3grand/core, @v3grand/db, @v3grand/engines, @v3grand/ui
+• Running build in 5 packages
+• Remote caching disabled
+  x Unable to find package manager binary: cannot find binary path
+  `-> cannot find binary path
+
