@@ -14,8 +14,8 @@ import { logger } from '@v3grand/core';
 import {
   buildProForma, evaluateDecision,
   scoreFactors, runMonteCarlo, analyzeBudget, distributeSCurve,
+  computeContentHash, MODEL_VERSIONS,
 } from '@v3grand/engines';
-import { computeContentHash, MODEL_VERSIONS } from '@v3grand/engines/integrity/hash-chain.js';
 import {
   getDealById, insertEngineResult, getLatestEngineResultByScenario,
   insertRecommendation, getLatestRecommendationByScenario, insertAuditEntry,

@@ -6,9 +6,9 @@
 |------------|-----------|
 | Node.js    | ≥ 20 LTS  |
 | pnpm       | ≥ 8       |
-| PostgreSQL | ≥ 15      |
+| PostgreSQL | ≥ 15 (or use Supabase — see below) |
 
-## Quick Start (fresh machine)
+## Quick Start (fresh machine) — with Docker
 
 ```bash
 # 1. Install dependencies
@@ -33,6 +33,99 @@ pnpm --filter @v3grand/ui run dev
 
 # 7. Open http://localhost:3000/login
 ```
+
+## Quick Start — with Supabase (no Docker)
+
+If you use Supabase and don’t want Docker running locally:
+
+```bash
+# 1. In .env set:
+#    DATABASE_URL=<your Supabase Postgres connection string>
+#    DATABASE_SCHEMA=v3grand
+#    (Leave NATS_URL unset so the API uses in-process event bus.)
+
+# 2. One-command deploy (install, build, migrate, seed, run API + UI):
+./scripts/local-deploy-supabase.sh
+```
+
+Or manually:
+
+```bash
+pnpm install
+cp .env.example .env   # then set DATABASE_URL and DATABASE_SCHEMA=v3grand
+pnpm build
+pnpm migrate:supabase  # create v3grand schema and tables on Supabase
+pnpm db:seed           # demo users and V3 Grand deal
+pnpm dev               # API (3001) + UI (3000)
+```
+
+Open http://localhost:3000/login and sign in with `lead@v3grand.com` / `demo123`.
+
+## Agent (Phase 2)
+
+The API exposes **POST /agent/chat** — an LLM-powered assistant that uses the same MCP tools (deals, engines, validation, market) in-process.
+
+| Step | Check | Command or action |
+|------|--------|-------------------|
+| 1. Configure | Set `OPENAI_API_KEY` in `.env` | Without it, POST /agent/chat returns 503 |
+| 2. Call | Send a message and get a reply | See below |
+| 3. Response | Reply + optional toolCallsUsed | `{ reply, toolCallsUsed?, rounds, conversationId? }` |
+
+**Option A — script (logs in and calls agent):**
+```bash
+./scripts/agent-chat.sh "List my deals and summarize the first one."
+```
+Uses `lead@v3grand.com` / `demo123` by default. Override with `LOGIN_EMAIL`, `LOGIN_PASSWORD`, or `API_URL`.
+
+**Option B — manual (get a JWT, then call agent):**
+```bash
+# 1. Log in and copy the token from the response
+curl -s -X POST http://localhost:3001/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"lead@v3grand.com","password":"demo123"}'
+
+# 2. Use the "token" value in place of YOUR_JWT below
+curl -X POST http://localhost:3001/agent/chat \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -d '{"message":"List my deals"}'
+```
+
+Optional env: `AGENT_MODEL` (default `gpt-4o-mini`), `AGENT_MAX_TOOL_ROUNDS` (default 10).
+
+## Agent Workflows (Phase 3) and UI
+
+**Workflow API (plan → execute → verify):**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /agent/workflows` | List available workflows (name, description, inputRequired). Requires auth. |
+| `POST /agent/workflows/validate` | Pre-flight check: verifies DB schema and tool runner. Body: `{ workflowName?: string }`. Returns `{ ok: true }` or `{ ok: false, error, hint? }`. Called by the UI before Execute. |
+| `POST /agent/workflows/:name/execute` | Execute a workflow by name. Body: `{}` or `{ dealId: "..." }` depending on workflow. Returns HMS-style report: `status`, `verification`, `timing`, `_debug` (stepResults, verificationResults). Requires auth. |
+
+**Built-in workflows:** `deal_dashboard_stress` (no input: lists deals, runs dashboard + stress test for first deal, verifies); `deal_summary_validation` (input: `dealId`: dashboard + validation models, verifies recommendation).
+
+**UI:** Open **Agent** in the nav (or http://localhost:3000/agent). Use **Workflows** to pick a workflow, optionally set Deal ID, and run **Execute**. Before running, the UI calls **POST /agent/workflows/validate**; if that fails (e.g. missing DB column), the error is shown and the workflow does not run — fix the issue (e.g. run `pnpm db:migrate`) and try again. Progress (phase, steps, verification) is shown HMS-style. Use **Assistant** to chat with the LLM (same as `POST /agent/chat`).
+
+**Enterprise (Phase A–D):**
+- **Deal snapshots:** Optional `marketSnapshotAtCreate` and `macroSnapshotAtCreate` on `POST /deals`; run migration `006_deal_snapshots.sql` (adds columns to `v3grand.deals`).
+- **Capture context (Big 4):** Migration `007_deal_capture_context.sql` adds `capture_context` JSONB to deals. Run **pnpm db:migrate** (runs all SQL in `packages/db/src/migrations/`; local dev uses `public` schema). For Supabase use **pnpm migrate:supabase**. If you see `column "capture_context" does not exist`, run one of these.
+- **Readiness:** `GET /deals/:id/readiness` returns `{ score, checks, message }` for IC readiness.
+- **Status / risk gate:** `PATCH /deals/:id` with `{ status, lifecyclePhase }`; setting `status` to `active` requires at least one risk (returns 400 otherwise).
+- **MCP tools:** `get_risks`, `create_risk`, `get_audit`, `deal_readiness`, `generate_ic_memo_summary` (see Agent/Assistant).
+- **Workflows:** `deal_ic_readiness`, `deal_market_alignment`, `deal_full_recompute_verify`, `deal_stress_to_risks`, `market_snapshot_for_deal` (plus `market_and_deal_health`) — all in Agent UI dropdown.
+- **Audit:** Workflow execution is audited when the workflow input includes `dealId` (`module: 'agent'`, `action: 'workflow.executed'`).
+- **Anti-hallucination:** See `docs/ANTI_HALLUCINATION_CONTRACT.md`.
+
+Use this checklist to verify API and UI connectivity:
+
+| Step | Check | Command or action |
+|------|--------|-------------------|
+| 1. API responding | `GET /health` returns 200 and `{"status":"ok",...}` | `curl -s http://localhost:3001/health` or `./scripts/verify-api.sh` |
+| 2. UI env | UI calls the correct API | Set `NEXT_PUBLIC_API_URL=http://localhost:3001` in `.env` (or your API base); restart UI after changes |
+| 3. Login | No CORS/network errors | Open http://localhost:3000/login → sign in with `lead@v3grand.com` / `demo123` |
+| 4. Dashboard | Data loads from API | Open a deal → Dashboard tab shows recommendation and metrics |
+| 5. MCP tools (Phase 1) | All 19 tool handlers return valid content | `./scripts/smoke-test-mcp.sh` or `pnpm --filter @v3grand/mcp-server run smoke`. With npm: `cd packages/mcp-server && npm run smoke`. With `DATABASE_URL`: full set; without DB: market tools only. |
 
 ## Demo Credentials
 
@@ -108,3 +201,4 @@ packages/
 | API CORS errors | Check `NEXT_PUBLIC_API_URL` in `.env` matches API port (default 3001) |
 | "No access to this deal" | Run seed to create deal_access entries |
 | Blank dashboard after seed | Click "Recompute" to generate initial engine results |
+| `column "capture_context" does not exist` (workflows or MCP) | Run migrations: **pnpm db:migrate** (runs SQL in `packages/db/src/migrations/`; for local dev substitutes `public` for `v3grand`). For Supabase use **pnpm migrate:supabase**. Then retry. |

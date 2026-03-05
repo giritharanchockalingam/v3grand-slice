@@ -29,6 +29,14 @@ async function run() {
     process.exit(1);
   }
 
+  if (!DATABASE_URL.includes('supabase')) {
+    console.error('DATABASE_URL does not look like a Supabase URL. For Supabase:');
+    console.error('  1. Open your project → Project Settings → Database');
+    console.error('  2. Copy the "Connection string" (URI) and set DATABASE_URL in .env');
+    console.error('  3. Use the database password (not your Supabase account password)');
+    process.exit(1);
+  }
+
   const sql = postgres(DATABASE_URL, { max: 1 });
 
   const migrationsDir = path.join(__dirname, 'migrations');
@@ -50,7 +58,14 @@ async function run() {
   console.log('All migrations applied.');
 }
 
-run().catch((e) => {
-  console.error('Migration failed:', e);
+run().catch((e: Error & { code?: string }) => {
+  console.error('Migration failed:', e.message);
+  if (e.code === '28P01') {
+    console.error('');
+    console.error('Password authentication failed. For Supabase:');
+    console.error('  1. Project Settings → Database → Connection string (URI)');
+    console.error('  2. Replace [YOUR-PASSWORD] with your database password (Settings → Database → Reset if needed)');
+    console.error('  3. Ensure DATABASE_URL in .env has no extra spaces or quotes');
+  }
   process.exit(1);
 });

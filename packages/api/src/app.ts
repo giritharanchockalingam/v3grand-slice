@@ -18,6 +18,7 @@ import { recomputeDeal } from './services/recompute.js';
 import { createMarketDataService } from '@v3grand/mcp';
 import { insertMarketDataHistory } from '@v3grand/db';
 import { marketRoutes } from './routes/market.js';
+import { agentRoutes } from './routes/agent.js';
 import { registerSecurityMiddleware } from './middleware/rate-limit.js';
 
 let cachedApp: FastifyInstance | null = null;
@@ -53,13 +54,19 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   let natsBus: NatsEventBus | null = null;
   if (config.natsUrl) {
-    natsBus = await createNatsEventBus({ natsUrl: config.natsUrl });
-    natsBus.subscribe(async (event) => {
-      const dealId = 'dealId' in event ? event.dealId : undefined;
-      if (dealId) {
-        await recomputeDeal(db, dealId, event.type, 'nats-subscriber');
-      }
-    });
+    try {
+      natsBus = await createNatsEventBus({ natsUrl: config.natsUrl });
+      natsBus.subscribe(async (event) => {
+        const dealId = 'dealId' in event ? event.dealId : undefined;
+        if (dealId) {
+          await recomputeDeal(db, dealId, event.type, 'nats-subscriber');
+        }
+      });
+      app.log.info('NATS event bus connected');
+    } catch (err) {
+      app.log.warn({ err }, 'NATS connection failed — using in-process event bus. Unset NATS_URL in .env to silence.');
+      natsBus = null;
+    }
   }
 
   await authRoutes(app, db);
@@ -72,6 +79,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await approvalRoutes(app, db);
   await sseRoutes(app);
   await marketRoutes(app, marketService);
+  await agentRoutes(app, db, marketService);
 
   app.get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }));
   app.get('/', () => ({
@@ -83,6 +91,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     market: '/market/macro',
     compliance: '/compliance/controls',
     validation: '/validation/models',
+    agent: '/agent/chat',
   }));
 
   cachedApp = app;

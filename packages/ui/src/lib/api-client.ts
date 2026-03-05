@@ -23,13 +23,28 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...opts,
-    headers,
-  });
+  const base = API_BASE.replace(/\/$/, '');
+  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, { ...opts, headers });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === 'Failed to fetch' || msg.includes('NetworkError') || msg.includes('Load failed')) {
+      throw new Error(
+        `Cannot reach the API. Start the server (e.g. pnpm --filter @v3grand/api run dev) and ensure it is running on ${base}.`,
+      );
+    }
+    throw err;
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({})) as { error?: string | { code?: string; message?: string }; details?: unknown };
+    const msg = typeof body?.error === 'object' && body?.error?.message
+      ? body.error.message
+      : (typeof body?.error === 'string' ? body.error : undefined) ?? `API error: ${res.status}`;
+    throw new Error(msg);
   }
   return res.json() as Promise<T>;
 }
@@ -37,7 +52,10 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: 'POST',
+      body: JSON.stringify(body !== undefined ? body : {}),
+    }),
   patch: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
 };

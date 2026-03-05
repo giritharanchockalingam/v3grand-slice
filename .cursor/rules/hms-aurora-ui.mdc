@@ -1,0 +1,17 @@
+---
+description: HMS Aurora–aligned UI/UX for the entire portal (Agent, Deals, Portfolio, Login, Nav)
+globs: packages/ui/**/*.tsx, packages/ui/**/*.css
+alwaysApply: true
+---
+
+# HMS Aurora UI/UX
+
+When editing **any** portal UI (Agent, Deals, Portfolio, Login, Nav), follow [docs/HMS_AURORA_UI_UX_REFERENCE.md](../../docs/HMS_AURORA_UI_UX_REFERENCE.md). Portal-wide: use **SVG icons** (e.g. `PortalIcons`) not emoji; `elevated-card` and `section-title`; surface/brand tokens; skeletons for loading.
+
+- **Empty states**: Chat shows suggested prompts (e.g. "What is WACC?", "List my deals"); workflows show a single clear line when API is down.
+- **Loading**: Use skeletons or shimmer for lists; assistant shows "{AGENT_NAME} is thinking...".
+- **Tiles**: Reply content as cards (headings, lists, code); workflow steps as one tile per step with icon, label, status.
+- **Named assistant**: Use `AGENT_NAME` from `@/lib/agent-constants` for titles, FAB, loading copy.
+- **Hierarchy**: One primary action per section; `section-title` for labels; consistent `elevated-card` and spacing (`p-4`/`p-6`, `space-y-6`).
+- **Errors**: One-line message + optional hint; amber for recoverable, red for hard failures.
+- **A11y**: Focus ring on controls; aria-labels on FAB and dialog; labels for form inputs.

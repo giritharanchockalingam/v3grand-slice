@@ -9,9 +9,9 @@ import {
   getLatestEngineResult, getLatestRecommendation, getRecentAudit,
   getLatestEngineResultByScenario, getScenarioResults, getScenarioRecommendations,
   insertAuditEntry, getConstructionSummary,
-  createDeal, updateDealCurrentMonth,
+  createDeal, updateDealCurrentMonth, updateDealStatus,
   getRecommendationHistory, getEngineResultHistory,
-  grantDealAccess,
+  grantDealAccess, computeDealReadiness, getRisksByDeal,
 } from '@v3grand/db';
 import { recommendations } from '@v3grand/db';
 import { eq, desc } from 'drizzle-orm';
@@ -38,6 +38,49 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
     const deal = await getDealById(db, req.params.id);
     if (!deal) return reply.code(404).send({ error: 'Deal not found' });
     return deal;
+  });
+
+  // ── GET /deals/:id/readiness ── (enterprise: completeness score for IC)
+  app.get<{ Params: { id: string } }>('/deals/:id/readiness', { preHandler: authGuard }, async (req, reply) => {
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, req.params.id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+    const readiness = await computeDealReadiness(db, req.params.id);
+    return readiness;
+  });
+
+  // ── PATCH /deals/:id ── (status / lifecycle; enterprise: require 1 risk for Active)
+  app.patch<{
+    Params: { id: string };
+    Body: { status?: string; lifecyclePhase?: string };
+  }>('/deals/:id', { preHandler: authGuard }, async (req, reply) => {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+    const deal = await getDealById(db, id);
+    if (!deal) return reply.code(404).send({ error: 'Deal not found' });
+    const { status, lifecyclePhase } = req.body || {};
+    if (status === 'active') {
+      const risks = await getRisksByDeal(db, id);
+      if (risks.length < 1) {
+        return reply.code(400).send({
+          error: 'At least one risk entry is required before activating a deal',
+          code: 'RISK_REQUIRED_FOR_ACTIVE',
+        });
+      }
+    }
+    const { updateDealStatus } = await import('@v3grand/db');
+    const updated = await updateDealStatus(db, id, { status, lifecyclePhase });
+    if ((status != null || lifecyclePhase != null) && updated) {
+      await insertAuditEntry(db, {
+        dealId: id, userId: user.userId, role: user.role,
+        module: 'deals', action: 'deal.updated',
+        entityType: 'deal', entityId: id,
+        diff: { status: status ?? deal.status, lifecyclePhase: lifecyclePhase ?? deal.lifecyclePhase },
+      });
+    }
+    return updated ?? deal;
   });
 
   // ── PATCH /deals/:id/assumptions ──
@@ -451,11 +494,19 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
   });
 
   // ── POST /deals ──
-  // Create a new deal — accepts minimal (name + assetClass) or full payload
+  // Create a new deal — accepts minimal (name + assetClass) or full payload; supports Big 4 capture context
   app.post<{
     Body: {
       name: string;
       assetClass: string;
+      lifecyclePhase?: string;
+      captureContext?: {
+        dealType?: string;
+        dealSource?: string;
+        strategicIntent?: string;
+        targetReturnBand?: string;
+        investmentSizeBand?: string;
+      };
       property?: unknown;
       partnership?: unknown;
       marketAssumptions?: unknown;
@@ -463,10 +514,12 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
       capexPlan?: unknown;
       opexModel?: unknown;
       scenarios?: unknown;
+      marketSnapshotAtCreate?: unknown;
+      macroSnapshotAtCreate?: unknown;
     };
   }>('/deals', { preHandler: requireRole('lead-investor', 'admin') }, async (req, reply) => {
     const user = (req as any).user;
-    const { name, assetClass } = req.body;
+    const { name, assetClass, lifecyclePhase, captureContext, marketSnapshotAtCreate, macroSnapshotAtCreate } = req.body;
 
     if (!name || !assetClass) {
       return reply.code(400).send({ error: 'name and assetClass are required' });
@@ -583,6 +636,8 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
     const dealPayload = {
       name,
       assetClass,
+      lifecyclePhase: lifecyclePhase ?? undefined,
+      captureContext: captureContext ?? undefined,
       property: req.body.property ?? defaults.property,
       partnership: req.body.partnership ?? defaults.partnership,
       marketAssumptions: normalizedMarket,
@@ -590,6 +645,8 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
       capexPlan,
       opexModel,
       scenarios: req.body.scenarios ?? defaults.scenarios,
+      marketSnapshotAtCreate: marketSnapshotAtCreate ?? undefined,
+      macroSnapshotAtCreate: macroSnapshotAtCreate ?? undefined,
     };
 
     const deal = await createDeal(db, dealPayload);

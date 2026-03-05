@@ -418,3 +418,5 @@ function composeNarrative(
 
   return parts.join(' ');
 }
+
+export { evaluate as evaluateDecision };

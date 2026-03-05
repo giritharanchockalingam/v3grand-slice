@@ -18,6 +18,7 @@
     { "path": "packages/db" },
     { "path": "packages/engines" },
     { "path": "packages/mcp" },
+    { "path": "packages/mcp-server" },
     { "path": "packages/api" },
     { "path": "packages/ui" }
   ]

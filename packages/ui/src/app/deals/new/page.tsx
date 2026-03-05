@@ -106,10 +106,19 @@ interface ScenarioData {
   phase2Trigger?: string;
 }
 
+interface CaptureContext {
+  dealType: string;
+  dealSource: string;
+  strategicIntent: string;
+  targetReturnBand: string;
+  investmentSizeBand: string;
+}
+
 interface DealFormData {
   name: string;
   assetClass: string;
   lifecyclePhase: string;
+  captureContext: CaptureContext;
   property: Property;
   marketAssumptions: MarketAssumptions;
   financialAssumptions: FinancialAssumptions;
@@ -160,6 +169,13 @@ export default function DealCreationWizard() {
     name: '',
     assetClass: 'hotel',
     lifecyclePhase: 'pre-development',
+    captureContext: {
+      dealType: 'new-deal',
+      dealSource: '',
+      strategicIntent: '',
+      targetReturnBand: '',
+      investmentSizeBand: '',
+    },
     property: {
       location: {
         city: 'Madurai',
@@ -278,6 +294,9 @@ export default function DealCreationWizard() {
       case 1:
         if (!formData.name.trim()) {
           newErrors.name = 'Deal name is required';
+        }
+        if (!formData.captureContext.dealType) {
+          newErrors.dealType = 'Deal type is required';
         }
         if (!formData.lifecyclePhase) {
           newErrors.lifecyclePhase = 'Lifecycle phase is required';
@@ -400,9 +419,100 @@ export default function DealCreationWizard() {
     }));
   };
 
-  // Step 1: Basic Info
+  const updateCaptureContext = (updates: Partial<CaptureContext>) => {
+    setFormData((prev) => ({
+      ...prev,
+      captureContext: { ...prev.captureContext, ...updates },
+    }));
+  };
+
+  // Step 1: Basic Info (Big 4–grade: deal type, source, intent, bands → engines & IC)
   const renderStep1 = () => (
     <div className="space-y-6">
+      <p className="text-sm text-gray-600 mb-4">
+        Capture deal type and strategic context upfront so engines and IC readiness workflows use the right assumptions and gates.
+      </p>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Deal Type *
+        </label>
+        <select
+          value={formData.captureContext.dealType}
+          onChange={(e) => updateCaptureContext({ dealType: e.target.value })}
+          className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+            errors.dealType ? 'border-red-500' : 'border-gray-300'
+          }`}
+        >
+          <option value="new-deal">New Deal</option>
+          <option value="revamp">Revamp</option>
+          <option value="restructure">Restructure</option>
+        </select>
+        <p className="text-xs text-gray-500 mt-0.5">Drives which workflows and validation gates apply.</p>
+        {errors.dealType && <p className="text-red-500 text-sm mt-1">{errors.dealType}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Deal Source
+        </label>
+        <select
+          value={formData.captureContext.dealSource}
+          onChange={(e) => updateCaptureContext({ dealSource: e.target.value })}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+        >
+          <option value="">Select source (optional)</option>
+          <option value="pipeline">Pipeline</option>
+          <option value="rfp">RFP</option>
+          <option value="restructuring-mandate">Restructuring mandate</option>
+          <option value="internal">Internal</option>
+        </select>
+        <p className="text-xs text-gray-500 mt-0.5">For audit and traceability.</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Strategic intent
+        </label>
+        <input
+          type="text"
+          value={formData.captureContext.strategicIntent}
+          onChange={(e) => updateCaptureContext({ strategicIntent: e.target.value })}
+          placeholder="e.g., Acquire and stabilize; Refinance at exit"
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+        />
+        <p className="text-xs text-gray-500 mt-0.5">One-line intent for IC memo and engine context.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Target return band
+          </label>
+          <input
+            type="text"
+            value={formData.captureContext.targetReturnBand}
+            onChange={(e) => updateCaptureContext({ targetReturnBand: e.target.value })}
+            placeholder="e.g., 12–15%"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Investment size band
+          </label>
+          <input
+            type="text"
+            value={formData.captureContext.investmentSizeBand}
+            onChange={(e) => updateCaptureContext({ investmentSizeBand: e.target.value })}
+            placeholder="e.g., INR 50–100 Cr"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+      </div>
+
+      <hr className="border-gray-200" />
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Deal Name *
@@ -1432,6 +1542,34 @@ export default function DealCreationWizard() {
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Deal Information</h3>
         <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+          <div className="flex justify-between">
+            <span className="text-gray-700">Deal Type:</span>
+            <span className="font-medium text-gray-900 capitalize">
+              {formData.captureContext.dealType.replace('-', ' ')}
+            </span>
+          </div>
+          {formData.captureContext.dealSource && (
+            <div className="flex justify-between">
+              <span className="text-gray-700">Deal Source:</span>
+              <span className="font-medium text-gray-900 capitalize">
+                {formData.captureContext.dealSource.replace(/-/g, ' ')}
+              </span>
+            </div>
+          )}
+          {formData.captureContext.strategicIntent && (
+            <div className="flex justify-between">
+              <span className="text-gray-700">Strategic intent:</span>
+              <span className="font-medium text-gray-900">{formData.captureContext.strategicIntent}</span>
+            </div>
+          )}
+          {(formData.captureContext.targetReturnBand || formData.captureContext.investmentSizeBand) && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-700">Return / size band:</span>
+              <span className="font-medium text-gray-900 text-right">
+                {[formData.captureContext.targetReturnBand, formData.captureContext.investmentSizeBand].filter(Boolean).join(' · ')}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-gray-700">Deal Name:</span>
             <span className="font-medium text-gray-900">{formData.name}</span>

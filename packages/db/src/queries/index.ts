@@ -624,6 +624,7 @@ export async function createDeal(
   data: {
     name: string;
     assetClass: string;
+    lifecyclePhase?: string;
     property: unknown;
     partnership: unknown;
     marketAssumptions: unknown;
@@ -631,12 +632,26 @@ export async function createDeal(
     capexPlan: unknown;
     opexModel: unknown;
     scenarios: unknown;
+    marketSnapshotAtCreate?: unknown;
+    macroSnapshotAtCreate?: unknown;
+    captureContext?: unknown;
   }
 ) {
   const [deal] = await db.insert(deals).values({
-    ...data,
+    name: data.name,
+    assetClass: data.assetClass,
+    lifecyclePhase: data.lifecyclePhase ?? 'pre-development',
+    property: data.property,
+    partnership: data.partnership,
+    marketAssumptions: data.marketAssumptions,
+    financialAssumptions: data.financialAssumptions,
+    capexPlan: data.capexPlan,
+    opexModel: data.opexModel,
+    scenarios: data.scenarios,
+    marketSnapshotAtCreate: data.marketSnapshotAtCreate ?? null,
+    macroSnapshotAtCreate: data.macroSnapshotAtCreate ?? null,
+    captureContext: data.captureContext ?? null,
     status: 'draft',
-    lifecyclePhase: 'pre-development',
     currentMonth: 0,
     version: 1,
     activeScenarioKey: 'base',
@@ -654,6 +669,19 @@ export async function updateDealCurrentMonth(
     .set({ currentMonth: newMonth, updatedAt: new Date() })
     .where(eq(deals.id, dealId))
     .returning();
+  return updated;
+}
+
+// ── Deal Status / Lifecycle (enterprise: require 1 risk for Active) ──
+export async function updateDealStatus(
+  db: DB,
+  dealId: string,
+  updates: { status?: string; lifecyclePhase?: string }
+) {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.status != null) set.status = updates.status;
+  if (updates.lifecyclePhase != null) set.lifecyclePhase = updates.lifecyclePhase;
+  const [updated] = await db.update(deals).set(set).where(eq(deals.id, dealId)).returning();
   return updated;
 }
 
@@ -687,6 +715,51 @@ export async function getEngineResultHistory(
     .where(and(...conditions))
     .orderBy(desc(engineResults.version))
     .limit(limit);
+}
+
+/** Deal readiness/completeness for IC and enterprise (score 0–100 and checks). */
+export async function computeDealReadiness(
+  db: DB,
+  dealId: string
+): Promise<{
+  score: number;
+  checks: Record<string, boolean | number>;
+  message: string;
+}> {
+  const deal = await getDealById(db, dealId);
+  if (!deal) {
+    return { score: 0, checks: {}, message: 'Deal not found' };
+  }
+  const prop = deal.property as Record<string, unknown> | null;
+  const hasCity = Boolean(prop?.location && typeof (prop.location as Record<string, unknown>)?.city === 'string' && (prop.location as Record<string, unknown>).city !== '');
+  const hasMarketSnapshot = deal.marketSnapshotAtCreate != null;
+  const hasMacroSnapshot = deal.macroSnapshotAtCreate != null;
+  const riskList = await getRisksByDeal(db, dealId);
+  const riskCount = riskList.length;
+  const hasRecommendation = (await getLatestRecommendation(db, dealId)) != null;
+  const hasUnderwriter = (await getLatestEngineResult(db, dealId, 'underwriter')) != null;
+  const hasFactor = (await getLatestEngineResult(db, dealId, 'factor')) != null;
+  const checks = {
+    hasCity,
+    hasMarketSnapshot,
+    hasMacroSnapshot,
+    riskCount,
+    hasRecommendation,
+    hasEngineResult: hasUnderwriter || hasFactor,
+  };
+  let score = 0;
+  if (hasCity) score += 15;
+  if (hasMarketSnapshot) score += 15;
+  if (hasMacroSnapshot) score += 10;
+  if (riskCount >= 1) score += 20;
+  if (hasRecommendation) score += 25;
+  if (checks.hasEngineResult) score += 15;
+  const message = score >= 80
+    ? 'Deal is IC-ready'
+    : score >= 50
+      ? 'Deal has partial readiness; add market snapshot, risks, or run engines'
+      : 'Complete property, run engines, and add at least one risk for IC readiness';
+  return { score, checks, message };
 }
 
 // ── Market Data History (G-4/F-8: append-only audit trail) ──

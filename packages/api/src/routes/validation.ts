@@ -6,9 +6,11 @@ import type { FastifyInstance } from 'fastify';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { authGuard, requireRole } from '../middleware/auth.js';
 import { getDealById, getEngineResultHistory } from '@v3grand/db';
-import { runScenarioShocks, runReverseStressTest, runSensitivitySweep, INSTITUTIONAL_SHOCKS } from '@v3grand/engines/stress/stress-test.js';
-import { verifyHashChain } from '@v3grand/engines/integrity/hash-chain.js';
-import { MODEL_INVENTORY, getModelCard, getModelsRequiringValidation } from '@v3grand/engines/validation/model-inventory.js';
+import {
+  runScenarioShocks, runReverseStressTest, runSensitivitySweep, INSTITUTIONAL_SHOCKS,
+  verifyHashChain,
+  MODEL_INVENTORY, getModelCard, getModelsRequiringValidation,
+} from '@v3grand/engines';
 import { SOC2_CONTROLS, generateControlMatrix } from '../compliance/soc2-controls.js';
 
 export async function validationRoutes(app: FastifyInstance, db: PostgresJsDatabase) {

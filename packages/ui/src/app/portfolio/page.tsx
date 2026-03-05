@@ -159,21 +159,21 @@ function SummaryCard({
 }) {
   const bgColor = {
     default: 'bg-white',
-    success: 'bg-teal-50',
+    success: 'bg-brand-50',
     warning: 'bg-amber-50',
   }[variant]
 
   const textColor = {
-    default: 'text-gray-700',
-    success: 'text-teal-700',
+    default: 'text-surface-700',
+    success: 'text-brand-700',
     warning: 'text-amber-700',
   }[variant]
 
   return (
-    <div className={`${bgColor} rounded-lg shadow p-6 border border-gray-200`}>
-      <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
+    <div className={`${bgColor} elevated-card rounded-xl border border-surface-200 p-6`}>
+      <p className="text-sm font-medium text-surface-600 mb-2">{title}</p>
       <p className={`text-3xl font-bold ${textColor}`}>{value}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-2">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-surface-500 mt-2">{subtitle}</p>}
     </div>
   )
 }
@@ -194,7 +194,7 @@ function VerdictBadge({ verdict, confidence }: { verdict: string; confidence: nu
       <span className={`inline-block px-3 py-1 rounded text-xs font-semibold border ${badgeStyle}`}>
         {verdict}
       </span>
-      <span className="text-xs text-gray-500">{confidence}% conf.</span>
+      <span className="text-xs text-surface-500">{confidence}% conf.</span>
     </div>
   )
 }
@@ -243,55 +243,55 @@ function DealComparisonTable({
   }
 
   const SortIcon = ({ column }: { column: keyof DealMetrics }) => {
-    if (sortConfig.key !== column) return <span className="text-gray-300">↕</span>
+    if (sortConfig.key !== column) return <span className="text-surface-300">↕</span>
     return <span>{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
   }
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
+    <div className="elevated-card rounded-xl border border-surface-200 p-6">
       <div className="mb-4">
         <input
           type="text"
           placeholder="Search by deal name..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-surface-300 rounded-xl focus:ring-2 focus:ring-brand-400 focus:border-transparent focus:outline-none"
         />
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+            <tr className="border-b border-surface-200 bg-surface-50">
+              <th className="text-left py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('name')}>
                 Name <SortIcon column="name" />
               </th>
-              <th className="text-left py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-left py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('phase')}>
                 Phase <SortIcon column="phase" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-center py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('month')}>
                 Month <SortIcon column="month" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-center py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('irr')}>
                 IRR <SortIcon column="irr" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-center py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('npv')}>
                 NPV <SortIcon column="npv" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-center py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('equityMultiple')}>
                 Equity Multiple <SortIcon column="equityMultiple" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700 cursor-pointer hover:bg-gray-100"
+              <th className="text-center py-3 px-4 font-semibold text-surface-700 cursor-pointer hover:bg-surface-100"
                 onClick={() => handleSort('dscr')}>
                 DSCR <SortIcon column="dscr" />
               </th>
-              <th className="text-center py-3 px-4 font-semibold text-gray-700">Verdict</th>
+              <th className="text-center py-3 px-4 font-semibold text-surface-700">Verdict</th>
             </tr>
           </thead>
           <tbody>
@@ -299,21 +299,21 @@ function DealComparisonTable({
               <tr
                 key={deal.id}
                 onClick={() => onRowClick(deal.id)}
-                className="border-b border-gray-200 hover:bg-teal-50 cursor-pointer transition-colors"
+                className="border-b border-surface-200 hover:bg-brand-50 cursor-pointer transition-colors"
               >
-                <td className="py-4 px-4 font-medium text-gray-900">{deal.name}</td>
-                <td className="py-4 px-4 text-gray-600">
+                <td className="py-4 px-4 font-medium text-surface-900">{deal.name}</td>
+                <td className="py-4 px-4 text-surface-600">
                   <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
                     {deal.phase.replace(/_/g, ' ')}
                   </span>
                 </td>
-                <td className="py-4 px-4 text-center text-gray-600">{deal.month}mo</td>
-                <td className="py-4 px-4 text-center font-semibold text-teal-700">{deal.irr.toFixed(1)}%</td>
-                <td className="py-4 px-4 text-center text-gray-600">
+                <td className="py-4 px-4 text-center text-surface-600">{deal.month}mo</td>
+                <td className="py-4 px-4 text-center font-semibold text-brand-700">{deal.irr.toFixed(1)}%</td>
+                <td className="py-4 px-4 text-center text-surface-600">
                   ${(deal.npv / 1000000).toFixed(1)}M
                 </td>
-                <td className="py-4 px-4 text-center text-gray-600">{deal.equityMultiple.toFixed(2)}x</td>
-                <td className="py-4 px-4 text-center text-gray-600">{deal.dscr.toFixed(2)}x</td>
+                <td className="py-4 px-4 text-center text-surface-600">{deal.equityMultiple.toFixed(2)}x</td>
+                <td className="py-4 px-4 text-center text-surface-600">{deal.dscr.toFixed(2)}x</td>
                 <td className="py-4 px-4 text-center">
                   <VerdictBadge verdict={deal.verdict} confidence={deal.confidence} />
                 </td>
@@ -324,7 +324,7 @@ function DealComparisonTable({
       </div>
 
       {sortedDeals.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-surface-500">
           No deals found matching your search.
         </div>
       )}
@@ -345,28 +345,28 @@ function RiskHeatMap({ deals }: { deals: DealMetrics[] }) {
   )
 
   const getHeatColor = (value: number, max: number) => {
-    if (value === 0) return 'bg-gray-50'
+    if (value === 0) return 'bg-surface-50'
     const intensity = value / max
     if (intensity > 0.66) return 'bg-red-500 text-white'
     if (intensity > 0.33) return 'bg-orange-400 text-white'
-    return 'bg-yellow-300 text-gray-900'
+    return 'bg-yellow-300 text-surface-900'
   }
 
   const maxCount = Math.max(...heatMapData.flat())
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">Portfolio Risk Heat Map</h3>
+    <div className="elevated-card rounded-xl border border-surface-200 p-6">
+      <h3 className="section-title mb-6">Portfolio Risk Heat Map</h3>
 
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr>
-              <th className="text-left py-2 px-4 text-sm font-semibold text-gray-700">Verdict / Phase</th>
+              <th className="text-left py-2 px-4 text-sm font-semibold text-surface-700">Verdict / Phase</th>
               {phases.map((phase) => (
                 <th
                   key={phase}
-                  className="text-center py-2 px-4 text-xs font-semibold text-gray-700 w-28"
+                  className="text-center py-2 px-4 text-xs font-semibold text-surface-700 w-28"
                 >
                   {phase.replace(/_/g, ' ')}
                 </th>
@@ -376,7 +376,7 @@ function RiskHeatMap({ deals }: { deals: DealMetrics[] }) {
           <tbody>
             {verdicts.map((verdict) => (
               <tr key={verdict}>
-                <td className="py-3 px-4 text-sm font-medium text-gray-700">{verdict}</td>
+                <td className="py-3 px-4 text-sm font-medium text-surface-700">{verdict}</td>
                 {heatMapData.map((row, phaseIdx) => {
                   const count = row[verdicts.indexOf(verdict)]
                   return (
@@ -418,8 +418,8 @@ function VerdictDistributionChart({ deals }: { deals: DealMetrics[] }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">Verdict Distribution</h3>
+    <div className="elevated-card rounded-xl border border-surface-200 p-6">
+      <h3 className="section-title mb-6">Verdict Distribution</h3>
 
       <div className="space-y-6">
         {verdictCounts.map(({ verdict, count }) => {
@@ -427,10 +427,10 @@ function VerdictDistributionChart({ deals }: { deals: DealMetrics[] }) {
           return (
             <div key={verdict}>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">{verdict}</span>
-                <span className="text-sm font-bold text-gray-900">{count} deals</span>
+                <span className="text-sm font-medium text-surface-700">{verdict}</span>
+                <span className="text-sm font-bold text-surface-900">{count} deals</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
+              <div className="w-full bg-surface-200 rounded-full h-8 overflow-hidden">
                 <div
                   className={`h-full ${verdictColors[verdict as keyof typeof verdictColors]} rounded-full flex items-center justify-end pr-3 transition-all duration-300`}
                   style={{ width: `${percentage}%` }}
@@ -464,8 +464,8 @@ function IRRDistributionChart({ deals }: { deals: DealMetrics[] }) {
   const maxCount = Math.max(...irrCounts.map((c) => c.count), 1)
 
   return (
-    <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">IRR Distribution</h3>
+    <div className="elevated-card rounded-xl border border-surface-200 p-6">
+      <h3 className="section-title mb-6">IRR Distribution</h3>
 
       <div className="space-y-6">
         {irrCounts.map(({ label, count }) => {
@@ -473,12 +473,12 @@ function IRRDistributionChart({ deals }: { deals: DealMetrics[] }) {
           return (
             <div key={label}>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">{label}</span>
-                <span className="text-sm font-bold text-gray-900">{count} deals</span>
+                <span className="text-sm font-medium text-surface-700">{label}</span>
+                <span className="text-sm font-bold text-surface-900">{count} deals</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden">
+              <div className="w-full bg-surface-200 rounded-full h-8 overflow-hidden">
                 <div
-                  className="h-full bg-teal-500 rounded-full flex items-center justify-end pr-3 transition-all duration-300"
+                  className="h-full bg-brand-500 rounded-full flex items-center justify-end pr-3 transition-all duration-300"
                   style={{ width: `${percentage}%` }}
                 >
                   {percentage > 15 && <span className="text-xs font-bold text-white">{percentage.toFixed(0)}%</span>}
@@ -513,10 +513,18 @@ export default function PortfolioPage() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading portfolio data...</p>
+      <div className="space-y-6 animate-fade-in max-w-7xl mx-auto px-6 py-8">
+        <div className="elevated-card p-8">
+          <div className="shimmer h-8 w-64 mb-3" />
+          <div className="shimmer h-4 w-48" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="elevated-card p-6">
+              <div className="shimmer h-4 w-24 mb-2" />
+              <div className="shimmer h-8 w-32" />
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -524,15 +532,15 @@ export default function PortfolioPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow p-8 max-w-md text-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="elevated-card p-8 max-w-md text-center">
           <p className="text-red-600 font-semibold mb-2">Error Loading Portfolio</p>
-          <p className="text-gray-600 mb-6">
+          <p className="text-surface-600 mb-6">
             Unable to load portfolio data. Please refresh the page or try again later.
           </p>
           <button
             onClick={() => router.refresh()}
-            className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors"
+            className="btn-primary"
           >
             Refresh Page
           </button>
@@ -543,9 +551,9 @@ export default function PortfolioPage() {
 
   if (!portfolioData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 font-medium">No portfolio data available</p>
+          <p className="text-surface-600 font-medium">No portfolio data available</p>
         </div>
       </div>
     )
@@ -556,18 +564,19 @@ export default function PortfolioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="elevated-card overflow-hidden sticky top-0 z-10">
+        <div className="h-1 bg-gradient-to-r from-brand-600 via-brand-400 to-teal-300" />
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Portfolio Analytics</h1>
-              <p className="text-gray-600 text-sm mt-1">Multi-deal comparison and performance metrics</p>
+              <h1 className="text-2xl font-bold text-surface-900 tracking-tight">Portfolio Analytics</h1>
+              <p className="text-surface-600 text-sm mt-1">Multi-deal comparison and performance metrics</p>
             </div>
             <Link
               href="/deals"
-              className="text-teal-600 hover:text-teal-700 font-medium flex items-center gap-2"
+              className="text-brand-600 hover:text-brand-700 font-medium flex items-center gap-2"
             >
               ← Back to Deals
             </Link>
@@ -629,7 +638,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* Footer Info */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-600">
+        <div className="elevated-card p-6 text-center text-sm text-surface-600">
           <p>
             Portfolio data last updated: <span className="font-semibold">{new Date().toLocaleDateString()}</span>
           </p>

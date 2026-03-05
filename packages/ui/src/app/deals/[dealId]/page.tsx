@@ -2,7 +2,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDashboard, useRunUnderwriter } from '../../../hooks/use-dashboard';
 import { usePermissions } from '../../../hooks/use-permissions';
 import { RecommendationCard } from '../../../components/dashboard/RecommendationCard';
@@ -24,19 +24,30 @@ import { SensitivityAnalysis } from '../../../components/analysis/SensitivityAna
 import { ExportPanel } from '../../../components/export/ExportPanel';
 import { useAuth } from '../../../lib/auth-context';
 import { MarketIntelligenceTab } from '../../../components/dashboard/MarketIntelligenceTab';
+import {
+  TabDashboardIcon,
+  TabChartIcon,
+  TabConstructionIcon,
+  TabRiskIcon,
+  TabSettingsIcon,
+  TabGlobeIcon,
+  TabFlaskIcon,
+  TabRefreshIcon,
+  TabClipboardIcon,
+} from '../../../components/icons/PortalIcons';
 
 type TabKey = 'overview' | 'underwriting' | 'construction' | 'risks' | 'assumptions' | 'market-intel' | 'sensitivity' | 'revaluation' | 'audit';
 
-const TABS: Array<{ key: TabKey; label: string; icon: string; requiresConstruction?: boolean }> = [
-  { key: 'overview', label: 'Dashboard', icon: '📊' },
-  { key: 'underwriting', label: 'Underwriting', icon: '📈' },
-  { key: 'construction', label: 'Construction', icon: '🏗️', requiresConstruction: true },
-  { key: 'risks', label: 'Risks', icon: '⚠️' },
-  { key: 'assumptions', label: 'Assumptions', icon: '⚙️' },
-  { key: 'market-intel', label: 'Market Intel', icon: '🌐' },
-  { key: 'sensitivity', label: 'What-If', icon: '🔬' },
-  { key: 'revaluation', label: 'Revaluation', icon: '🔄' },
-  { key: 'audit', label: 'Audit Trail', icon: '📋' },
+const TABS: Array<{ key: TabKey; label: string; Icon: React.ComponentType<{ className?: string }>; requiresConstruction?: boolean }> = [
+  { key: 'overview', label: 'Dashboard', Icon: TabDashboardIcon },
+  { key: 'underwriting', label: 'Underwriting', Icon: TabChartIcon },
+  { key: 'construction', label: 'Construction', Icon: TabConstructionIcon, requiresConstruction: true },
+  { key: 'risks', label: 'Risks', Icon: TabRiskIcon },
+  { key: 'assumptions', label: 'Assumptions', Icon: TabSettingsIcon },
+  { key: 'market-intel', label: 'Market Intel', Icon: TabGlobeIcon },
+  { key: 'sensitivity', label: 'What-If', Icon: TabFlaskIcon },
+  { key: 'revaluation', label: 'Revaluation', Icon: TabRefreshIcon },
+  { key: 'audit', label: 'Audit Trail', Icon: TabClipboardIcon },
 ];
 
 export default function DealDashboardPage() {
@@ -189,7 +200,7 @@ export default function DealDashboardPage() {
               onClick={() => setTab(t.key)}
               className={tab === t.key ? 'tab-item-active' : 'tab-item'}
             >
-              <span className="mr-1.5 text-xs">{t.icon}</span>
+              <t.Icon className="mr-1.5 w-4 h-4 flex-shrink-0" />
               {t.label}
             </button>
           ))}

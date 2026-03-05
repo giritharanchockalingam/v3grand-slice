@@ -46,8 +46,11 @@ export const deals = pgTable('deals', {
   opexModel:           jsonb('opex_model').notNull(),
   scenarios:           jsonb('scenarios').notNull(),
   activeScenarioKey:   varchar('active_scenario_key', { length: 20 }).notNull().default('base'),
-  createdAt:           timestamp('created_at').notNull().defaultNow(),
-  updatedAt:           timestamp('updated_at').notNull().defaultNow(),
+  marketSnapshotAtCreate: jsonb('market_snapshot_at_create'),
+  macroSnapshotAtCreate:  jsonb('macro_snapshot_at_create'),
+  captureContext:        jsonb('capture_context'),
+  createdAt:             timestamp('created_at').notNull().defaultNow(),
+  updatedAt:             timestamp('updated_at').notNull().defaultNow(),
 });
 
 // ── Engine Results (versioned, append-only, hash-chained for tamper evidence) ──

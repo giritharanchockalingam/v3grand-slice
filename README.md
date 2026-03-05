@@ -14,6 +14,7 @@ A thin end-to-end slice of the **V3 Grand Investment Platform**: create a deal, 
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
+- [Verification](#verification)
 - [Scripts](#scripts)
 - [Architecture](#architecture)
 - [API overview](#api-overview)
@@ -102,7 +103,7 @@ v3grand-slice/
 
 ## Quick start
 
-**One-command local deploy (recommended):**
+**One-command local deploy (recommended, uses Docker):**
 
 ```bash
 ./scripts/local-deploy.sh
@@ -111,6 +112,23 @@ v3grand-slice/
 This will: start Docker (Postgres, Redis, NATS), install & build, seed the database, then start the API and UI. Open **http://localhost:3000**, log in with `lead@v3grand.com` / `demo123`. Press Ctrl+C to stop.
 
 **Requirements:** Docker running, Node ≥ 20, pnpm 9.x.
+
+---
+
+**One-command local deploy with Supabase (no Docker):**
+
+If you use Supabase for Postgres and don’t want Docker running locally:
+
+1. In `.env`, set `DATABASE_URL` to your Supabase Postgres connection string (Project Settings → Database) and `DATABASE_SCHEMA=v3grand`.
+2. Run:
+
+```bash
+./scripts/local-deploy-supabase.sh
+```
+
+This will: install & build, run Supabase migrations, seed the database, then start the API and UI. The API uses an in-process event bus (NATS and Redis are not required). Open **http://localhost:3000**, log in with `lead@v3grand.com` / `demo123`.
+
+**Requirements:** Node ≥ 20, pnpm 9.x, Supabase project with connection string in `.env`.
 
 ---
 
@@ -164,6 +182,33 @@ Copy `.env.example` to `.env` and adjust. Never commit `.env`.
 
 ---
 
+## Verification
+
+**API responding (item 7)** — With the API running (e.g. after `./scripts/local-deploy.sh` or `pnpm --filter @v3grand/api dev`):
+
+```bash
+curl -s http://localhost:3001/health
+# Expect: {"status":"ok","timestamp":"..."}
+```
+
+Or use the script (exits 0 if OK, 1 if not):
+
+```bash
+./scripts/verify-api.sh
+# Override URL: API_URL=https://api.example.com ./scripts/verify-api.sh
+```
+
+**UI → API URL (item 8)** — Ensure `.env` has `NEXT_PUBLIC_API_URL` set to your API base (e.g. `http://localhost:3001` for local). Restart or rebuild the UI after changing it.
+
+**End-to-end connectivity (item 9)** — Checklist:
+
+1. **API up** — `curl -s http://localhost:3001/health` returns `{"status":"ok",...}` or run `./scripts/verify-api.sh`.
+2. **UI env** — `NEXT_PUBLIC_API_URL` in `.env` points to that API URL.
+3. **Login** — Open http://localhost:3000/login, sign in with `lead@v3grand.com` / `demo123`; no CORS or network errors.
+4. **Dashboard** — Open a deal and confirm the dashboard and data load.
+
+---
+
 ## Scripts
 
 From the **repository root**:
@@ -178,6 +223,9 @@ From the **repository root**:
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm db:seed` | Run DB seed (`@v3grand/db`): create DB, tables, demo users, V3 Grand deal, construction data, risks, initial engine results |
 | `pnpm db:migrate` | Run DB migrations (if/when migrations are added) |
+| `./scripts/verify-api.sh` | Check API health (exits 0 if `GET /health` returns ok) |
+| `./scripts/local-deploy.sh` | One-command local deploy (Docker + build + seed + API + UI) |
+| `./scripts/local-deploy-supabase.sh` | Local deploy using Supabase only (no Docker: migrations + seed + API + UI) |
 
 Package-specific (examples):
 

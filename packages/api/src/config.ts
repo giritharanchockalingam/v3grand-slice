@@ -48,6 +48,13 @@ export const config = {
   /** NATS server URL for JetStream event bus. If unset, in-process bus is used. */
   natsUrl: process.env.NATS_URL ?? '',
 
+  /** OpenAI API key for agent (POST /agent/chat). When unset, agent returns 503. */
+  openaiApiKey: process.env.OPENAI_API_KEY ?? '',
+  /** Agent model (default gpt-4o-mini for cost; use gpt-4o for best quality). */
+  agentModel: process.env.AGENT_MODEL ?? 'gpt-4o-mini',
+  /** Max tool-call rounds per request (default 10). */
+  agentMaxToolRounds: Number(process.env.AGENT_MAX_TOOL_ROUNDS ?? 10),
+
   // ── MCP Market Intelligence ──
   /** RBI DBIE API key — free at data.rbi.org.in */
   rbiApiKey: process.env.RBI_API_KEY ?? '',
