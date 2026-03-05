@@ -12,17 +12,11 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string>;
 }
 
-interface ApiResponse<T = any> {
-  data: T;
-  status: number;
-  ok: boolean;
-}
-
 async function request<T = any>(
   method: string,
   path: string,
   options: RequestOptions = {}
-): Promise<ApiResponse<T>> {
+): Promise<T> {
   const { params, body, headers: customHeaders, ...rest } = options;
 
   // Build URL with query params
@@ -70,19 +64,19 @@ async function request<T = any>(
     throw error;
   }
 
-  return { data, status: response.status, ok: response.ok };
+  return data;
 }
 
 export const apiClient = {
-  get: <T = any>(path: string, options?: RequestOptions) =>
+  get: <T = any>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>('GET', path, options),
-  post: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  post: <T = any>(path: string, body?: any, options?: RequestOptions): Promise<T> =>
     request<T>('POST', path, { ...options, body }),
-  put: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  put: <T = any>(path: string, body?: any, options?: RequestOptions): Promise<T> =>
     request<T>('PUT', path, { ...options, body }),
-  patch: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+  patch: <T = any>(path: string, body?: any, options?: RequestOptions): Promise<T> =>
     request<T>('PATCH', path, { ...options, body }),
-  delete: <T = any>(path: string, options?: RequestOptions) =>
+  delete: <T = any>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>('DELETE', path, options),
 };
 
