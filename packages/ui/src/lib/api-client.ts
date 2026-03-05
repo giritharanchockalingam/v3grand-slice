@@ -6,7 +6,7 @@
 
 import { getAuthToken, willTokenExpireSoon } from './auth-store';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string>;

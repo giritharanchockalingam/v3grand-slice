@@ -10,7 +10,7 @@ import { EvaluationResults } from '@/components/evaluation/EvaluationResults';
 import type { DealEvaluationInput, DealEvaluationOutput } from '@v3grand/core';
 import { useAuth } from '../../../../lib/auth-context';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function EvaluatePage() {
   const { dealId } = useParams<{ dealId: string }>();

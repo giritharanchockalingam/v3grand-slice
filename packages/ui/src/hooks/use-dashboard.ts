@@ -22,7 +22,7 @@ export function useDashboard(dealId: string) {
   useEffect(() => {
     if (!dealId || !token) return;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '/api';
     // EventSource doesn't support custom headers, so pass token as query param
     const url = `${apiBase}/deals/${dealId}/events?token=${encodeURIComponent(token)}`;
 

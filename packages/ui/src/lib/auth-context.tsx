@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     /* ── Live mode: authenticate against backend API ── */
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '/api';
     const res = await fetch(`${apiBase}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
