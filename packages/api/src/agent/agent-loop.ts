@@ -25,35 +25,40 @@ Rules:
 When the user asks "what are the market intel factors?" or "why are market intel factors considered?" or "market intel factors and why they matter" (or similar), call **get_market_intel_factors** and return the tool result (do not rewrite).
 When the user asks about "WACC", "hurdle rate", "discount rate", or "WACC and hurdle rate", call **get_wacc_hurdle_explainer** and return the tool result (do not rewrite).
 When the user asks about "EBITDA", "how EBITDA is used", or "GOP" in this portal, call **get_ebitda_explainer** and return the tool result (do not rewrite).
-For these tools you must call the tool and then the system will return the formatted answer; do not strip or rewrite the content.`;
+When the user asks to "list my deals", "show my deals", or "what deals do I have", call **list_deals** and return the tool result in a clear list format (do not rewrite).`;
 
 /** RAG-style context enrichment: retrieve deals (and optional macro) so the LLM has grounded context before the first turn. */
-async function buildRetrievedContext(toolRunner: AgentToolRunner): Promise<string> {
+async function buildRetrievedContext(
+  toolRunner: AgentToolRunner,
+  context?: { userId?: string },
+): Promise<string> {
   const parts: string[] = [];
   try {
-    const dealsResult = await toolRunner.callTool('list_deals', { limit: 8 });
-    const text = dealsResult.content.map((c) => c.text).filter(Boolean).join('\n');
+    const dealsResult = await toolRunner.callTool('list_deals', { limit: 8 }, context);
+    const text = dealsResult.content.filter((c): c is { type: 'text'; text: string } => c.type === 'text').map((c) => c.text).filter(Boolean).join('\n');
     if (text && !text.toLowerCase().includes('error')) {
-      try {
-        const jsonStart = text.indexOf('{');
-        const jsonStr = jsonStart >= 0 ? text.slice(jsonStart) : text;
-        const parsed = JSON.parse(jsonStr) as { deals?: Array<{ id?: string; name?: string }> };
-        const deals = parsed?.deals ?? (Array.isArray(parsed) ? parsed : []);
-        const list = (deals as Array<{ id?: string; name?: string }>)
-          .slice(0, 8)
-          .map((d) => `${d.name ?? 'Unnamed'} (${d.id ?? '—'})`)
-          .join('; ');
-        if (list) parts.push(`Deals available: ${list}.`);
-      } catch {
-        if (text.length < 500) parts.push(`Deals snapshot: ${text.trim()}.`);
-      }
+      const dataItem = dealsResult.content.find((c): c is { type: 'data'; data: unknown } => c.type === 'data' && c.data != null);
+      const parsed = dataItem?.data as { deals?: Array<{ id?: string; name?: string }> } | undefined;
+      const deals = parsed?.deals ?? (() => {
+        try {
+          const jsonStart = text.indexOf('{');
+          const jsonStr = jsonStart >= 0 ? text.slice(jsonStart) : text;
+          const p = JSON.parse(jsonStr) as { deals?: Array<{ id?: string; name?: string }> };
+          return p?.deals ?? [];
+        } catch {
+          return [];
+        }
+      })();
+      const list = (Array.isArray(deals) ? deals : []).slice(0, 8).map((d) => `${d.name ?? 'Unnamed'} (${d.id ?? '—'})`).join('; ');
+      if (list) parts.push(`Deals available: ${list}.`);
+      else if (text.length < 500) parts.push(`Deals snapshot: ${text.trim()}.`);
     }
   } catch {
     // ignore
   }
   try {
     const macroResult = await toolRunner.callTool('get_macro_indicators', {});
-    const macroText = macroResult.content.map((c) => c.text).filter(Boolean).join('\n');
+    const macroText = macroResult.content.filter((c): c is { type: 'text'; text: string } => c.type === 'text').map((c) => c.text).filter(Boolean).join('\n');
     if (macroText && !macroText.toLowerCase().includes('error') && macroText.length < 400) {
       parts.push(`Macro context: ${macroText.trim()}.`);
     }
@@ -62,6 +67,31 @@ async function buildRetrievedContext(toolRunner: AgentToolRunner): Promise<strin
   }
   if (parts.length === 0) return '';
   return `[Retrieved context for grounding]\n${parts.join('\n')}`;
+}
+
+/** Parse list_deals tool output into HMS-style tiles for the UI. */
+function parseListDealsIntoTiles(toolContent: string): AgentResult['tiles'] {
+  const tiles: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }> = [];
+  try {
+    const jsonStart = toolContent.indexOf('{');
+    const jsonStr = jsonStart >= 0 ? toolContent.slice(jsonStart) : toolContent;
+    const parsed = JSON.parse(jsonStr) as { deals?: Array<{ id?: string; name?: string; status?: string }>; total?: number };
+    const deals = parsed?.deals ?? (Array.isArray(parsed) ? parsed : []);
+    const total = typeof parsed?.total === 'number' ? parsed.total : deals.length;
+    const summary = deals.length === 0 ? 'No deals found.' : `Found ${total} deal(s).`;
+    const items = (deals as Array<{ id?: string; name?: string }>).map(
+      (d) => `${d.name ?? 'Unnamed'} (${d.id ?? '—'})`,
+    );
+    tiles.push({ type: 'section', title: 'Your deals', body: summary });
+    if (items.length > 0) {
+      tiles.push({ type: 'list', title: 'Deals', items });
+    }
+  } catch {
+    // Fallback: treat first line as body
+    const firstLine = toolContent.split('\n')[0]?.trim();
+    if (firstLine) tiles.push({ type: 'section', title: 'Deals', body: firstLine });
+  }
+  return tiles;
 }
 
 export interface AgentResult {
@@ -86,8 +116,9 @@ export async function runAgentLoop(
   },
 ): Promise<AgentResult> {
   const tools = toolRunner.listToolsForLLM();
+  const toolContext = options.userId != null ? { userId: options.userId, role: options.role } : undefined;
   const retrievedContext =
-    options.useRetrievedContext !== false ? await buildRetrievedContext(toolRunner) : '';
+    options.useRetrievedContext !== false ? await buildRetrievedContext(toolRunner, toolContext) : '';
   const userContent =
     retrievedContext.length > 0 ? `${retrievedContext}\n\nUser question: ${message}` : message;
 
@@ -142,10 +173,11 @@ export async function runAgentLoop(
       }
       let toolContent = '';
       try {
-        const result = await toolRunner.callTool(name, args);
-        const contentArr = result.content as Array<{ type: string; text?: string; data?: { tiles?: unknown[] } }>;
-        toolContent = contentArr.filter((c) => c.type === 'text').map((c) => c.text).filter(Boolean).join('\n');
-        const tiles = contentArr.find((c) => c.type === 'data')?.data?.tiles as AgentResult['tiles'] | undefined;
+        const result = await toolRunner.callTool(name, args, toolContext);
+        const contentArr = result.content;
+        toolContent = contentArr.filter((c): c is { type: 'text'; text: string } => c.type === 'text').map((c) => c.text).filter(Boolean).join('\n');
+        const dataItem = contentArr.find((c): c is { type: 'data'; data: { tiles?: unknown[] } } => c.type === 'data' && c.data != null);
+        const tiles = dataItem?.data?.tiles as AgentResult['tiles'] | undefined;
         messages.push({
           role: 'tool',
           tool_call_id: tc.id!,
@@ -160,6 +192,18 @@ export async function runAgentLoop(
             toolCallsUsed,
             rounds,
           };
+        }
+        // List my deals: prefer data.tiles from handler when present; else parse from text
+        if (name === 'list_deals' && toolContent.trim() && !toolContent.toLowerCase().includes('error')) {
+          const listDealsTiles = (tiles && tiles.length > 0 ? tiles : parseListDealsIntoTiles(toolContent)) as AgentResult['tiles'] | undefined;
+          if (listDealsTiles && listDealsTiles.length > 0) {
+            return {
+              reply: listDealsTiles[0]?.body ?? toolContent.trim(),
+              tiles: listDealsTiles,
+              toolCallsUsed,
+              rounds,
+            };
+          }
         }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);

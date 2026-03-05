@@ -1,61 +1,90 @@
-// ─── Typed API Client ───────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+/**
+ * ─── API Client ─────────────────────────────────────────────────────
+ * Centralized API client with auth token injection,
+ * error handling, and base URL configuration.
+ */
 
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = sessionStorage.getItem('v3grand-auth');
-    if (!stored) return null;
-    const { token } = JSON.parse(stored);
-    return token ?? null;
-  } catch {
-    return null;
-  }
+import { getAuthToken, willTokenExpireSoon } from './auth-store';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+interface RequestOptions extends RequestInit {
+  params?: Record<string, string>;
 }
 
-async function request<T>(path: string, opts?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+interface ApiResponse<T = any> {
+  data: T;
+  status: number;
+  ok: boolean;
+}
+
+async function request<T = any>(
+  method: string,
+  path: string,
+  options: RequestOptions = {}
+): Promise<ApiResponse<T>> {
+  const { params, body, headers: customHeaders, ...rest } = options;
+
+  // Build URL with query params
+  let url = `${BASE_URL}${path}`;
+  if (params) {
+    const searchParams = new URLSearchParams(params);
+    url += `?${searchParams.toString()}`;
+  }
+
+  // Build headers
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(opts?.headers as Record<string, string> ?? {}),
+    ...((customHeaders as Record<string, string>) || {}),
   };
+
+  // Inject auth token
+  const token = getAuthToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const base = API_BASE.replace(/\/$/, '');
-  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  // Warn if token expiring soon
+  if (willTokenExpireSoon(2 * 60 * 1000)) {
+    console.warn('[ApiClient] Auth token expiring in <2 minutes');
+  }
 
-  let res: Response;
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
+    ...rest,
+  });
+
+  let data: T;
   try {
-    res = await fetch(url, { ...opts, headers });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === 'Failed to fetch' || msg.includes('NetworkError') || msg.includes('Load failed')) {
-      throw new Error(
-        `Cannot reach the API. Start the server (e.g. pnpm --filter @v3grand/api run dev) and ensure it is running on ${base}.`,
-      );
-    }
-    throw err;
+    data = await response.json();
+  } catch {
+    data = {} as T;
   }
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string | { code?: string; message?: string }; details?: unknown };
-    const msg = typeof body?.error === 'object' && body?.error?.message
-      ? body.error.message
-      : (typeof body?.error === 'string' ? body.error : undefined) ?? `API error: ${res.status}`;
-    throw new Error(msg);
+  if (!response.ok) {
+    const error = new Error(`API Error ${response.status}: ${response.statusText}`);
+    (error as any).status = response.status;
+    (error as any).data = data;
+    throw error;
   }
-  return res.json() as Promise<T>;
+
+  return { data, status: response.status, ok: response.ok };
 }
 
-export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, {
-      method: 'POST',
-      body: JSON.stringify(body !== undefined ? body : {}),
-    }),
-  patch: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+export const apiClient = {
+  get: <T = any>(path: string, options?: RequestOptions) =>
+    request<T>('GET', path, options),
+  post: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+    request<T>('POST', path, { ...options, body }),
+  put: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+    request<T>('PUT', path, { ...options, body }),
+  patch: <T = any>(path: string, body?: any, options?: RequestOptions) =>
+    request<T>('PATCH', path, { ...options, body }),
+  delete: <T = any>(path: string, options?: RequestOptions) =>
+    request<T>('DELETE', path, options),
 };
+
+// Backward-compatible alias — existing components import { api }
+export const api = apiClient;

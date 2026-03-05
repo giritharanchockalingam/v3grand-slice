@@ -13,6 +13,36 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/* ── Demo users for deployed preview (no backend required) ── */
+const DEMO_USERS: Record<string, { user: User; role: string }> = {
+  'lead@v3grand.com': {
+    user: { id: 'demo-lead-001', email: 'lead@v3grand.com', name: 'Alexandra Chen', role: 'lead_investor' } as User,
+    role: 'Lead Investor',
+  },
+  'co@v3grand.com': {
+    user: { id: 'demo-co-001', email: 'co@v3grand.com', name: 'Marcus Rodriguez', role: 'co_investor' } as User,
+    role: 'Co-Investor',
+  },
+  'ops@v3grand.com': {
+    user: { id: 'demo-ops-001', email: 'ops@v3grand.com', name: 'Sarah Kim', role: 'operator' } as User,
+    role: 'Operator',
+  },
+  'viewer@v3grand.com': {
+    user: { id: 'demo-view-001', email: 'viewer@v3grand.com', name: 'David Park', role: 'viewer' } as User,
+    role: 'Viewer',
+  },
+};
+
+const DEMO_TOKEN = 'demo-jwt-token-v3grand-preview';
+
+function isDemoMode(): boolean {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL;
+  // Demo mode when no API URL is configured or we're on Vercel without a backend
+  if (!apiBase) return true;
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) return true;
+  return false;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -32,12 +62,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, _password: string) => {
+    /* ── Demo mode: authenticate against local demo users ── */
+    if (isDemoMode()) {
+      const demoEntry = DEMO_USERS[email.toLowerCase()];
+      if (!demoEntry) {
+        throw new Error('Invalid demo credentials. Use one of the Quick Access buttons below.');
+      }
+      setUser(demoEntry.user);
+      setToken(DEMO_TOKEN);
+      sessionStorage.setItem('v3grand-auth', JSON.stringify({ user: demoEntry.user, token: DEMO_TOKEN }));
+      return;
+    }
+
+    /* ── Live mode: authenticate against backend API ── */
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     const res = await fetch(`${apiBase}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password: _password }),
     });
 
     if (!res.ok) {

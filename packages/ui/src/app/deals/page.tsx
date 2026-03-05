@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 
+export const dynamic = 'force-dynamic';
+
 interface DealSummary {
   id: string;
   name: string;

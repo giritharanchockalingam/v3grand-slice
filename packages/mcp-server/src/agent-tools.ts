@@ -1,7 +1,10 @@
 /**
  * Agent tool runner for in-process use by the API (POST /agent/chat).
  * Exposes the same MCP tools as the stdio server, with listToolsForLLM() for OpenAI format
- * and callTool(name, args) for execution.
+ * and callTool(name, args, context?) for execution.
+ *
+ * HMS Aurora–aligned: tool context (e.g. userId) for multi-tenant list_deals;
+ * content may include type: 'data' with tiles for structured replies.
  *
  * Import from '@v3grand/mcp-server/agent-tools'.
  */
@@ -18,11 +21,29 @@ import { registerRiskTools } from './tools/risks.js';
 
 export type MarketDataService = Awaited<ReturnType<typeof createMarketDataService>>;
 
-type ToolHandler = (args: unknown) => Promise<{ content: Array<{ type: 'text'; text: string }> }>;
+/** Per-request context for tools (e.g. userId for listDealsByUser). */
+export interface ToolContext {
+  userId?: string;
+  role?: string;
+}
+
+/** Tool result content item: text and/or structured data (HMS Aurora–aligned). */
+export type ToolContentItem =
+  | { type: 'text'; text: string }
+  | { type: 'data'; data?: unknown };
+
+type ToolHandler = (
+  args: unknown,
+  context?: ToolContext,
+) => Promise<{ content: ToolContentItem[]; isError?: boolean }>;
 
 export interface AgentToolRunner {
   listToolsForLLM(): OpenAITool[];
-  callTool(name: string, args: unknown): Promise<{ content: Array<{ type: 'text'; text: string }> }>;
+  callTool(
+    name: string,
+    args: unknown,
+    context?: ToolContext,
+  ): Promise<{ content: ToolContentItem[]; isError?: boolean }>;
 }
 
 /** OpenAI chat completions tools format */
@@ -75,10 +96,15 @@ function createRunner(db: PostgresJsDatabase, marketService: MarketDataService):
       return result;
     },
 
-    async callTool(name: string, args: unknown): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+    async callTool(
+      name: string,
+      args: unknown,
+      context?: ToolContext,
+    ): Promise<{ content: ToolContentItem[]; isError?: boolean }> {
       const t = tools.get(name);
       if (!t) throw new Error(`Unknown tool: ${name}`);
-      return t.handler(args);
+      const out = await t.handler(args, context);
+      return out;
     },
   };
 }

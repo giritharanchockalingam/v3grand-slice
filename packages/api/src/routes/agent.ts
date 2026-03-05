@@ -90,9 +90,12 @@ export async function agentRoutes(
     try {
       // 1) Touch deals table including capture_context so missing migrations surface here
       await db.select({ captureContext: deals.captureContext }).from(deals).limit(1);
-      // 2) Run list_deals to verify tool runner and DB
-      const result = await toolRunner.callTool('list_deals', { limit: 1 });
-      const firstText = result.content?.find((c: { type: string; text?: string }) => c.type === 'text' && c.text)?.text ?? '';
+      // 2) Run list_deals to verify tool runner and DB (user-scoped when authenticated)
+      const user = (req as any).user;
+      const toolContext = user?.userId ? { userId: user.userId } : undefined;
+      const result = await toolRunner.callTool('list_deals', { limit: 1 }, toolContext);
+      const firstContent = result.content?.find((c): c is { type: 'text'; text: string } => c.type === 'text' && 'text' in c && !!c.text);
+      const firstText = firstContent?.text ?? '';
       const isError =
         firstText.toLowerCase().includes('error') ||
         firstText.startsWith('[') ||
@@ -145,13 +148,14 @@ export async function agentRoutes(
       planId,
       createdAt: startedAt.toISOString(),
     };
-    const report = await executePlan(plan, toolRunner);
+    const user = (req as any).user;
+    const context = user?.userId ? { userId: user.userId } : undefined;
+    const report = await executePlan(plan, toolRunner, context);
     const completedAt = new Date(report.completedAt);
     const totalDurationMs = report.totalDurationMs;
 
     // Enterprise: audit workflow execution when a deal is in scope
     if (typeof input?.dealId === 'string') {
-      const user = (req as any).user;
       await insertAuditEntry(db, {
         dealId: input.dealId as string,
         userId: user?.userId ?? 'system',

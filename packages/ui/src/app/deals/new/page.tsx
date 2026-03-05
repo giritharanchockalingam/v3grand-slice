@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { api } from '../../../lib/api-client';
-import { useAuth } from '../../../lib/auth-context';
+import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
+
+// Force dynamic rendering — page requires auth context
+export const dynamic = 'force-dynamic';
 
 // Type definitions
 interface Location {
@@ -274,7 +277,7 @@ export default function DealCreationWizard() {
   // Mutation for creating deal
   const createDealMutation = useMutation({
     mutationFn: async (data: DealFormData) => {
-      const response = await api.post('/deals', data);
+      const response = await apiClient.post('/deals', data);
       return response;
     },
     onSuccess: (data: any) => {

@@ -27,9 +27,19 @@ export default function LoginPage() {
     }
   };
 
-  const quickLogin = (email: string) => {
-    setEmail(email);
+  const quickLogin = async (demoEmail: string) => {
+    setEmail(demoEmail);
     setPassword('demo123');
+    setError('');
+    setLoading(true);
+    try {
+      await login(demoEmail, 'demo123');
+      router.push('/deals');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

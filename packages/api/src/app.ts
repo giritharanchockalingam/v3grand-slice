@@ -23,6 +23,14 @@ import { registerSecurityMiddleware } from './middleware/rate-limit.js';
 import { assumptionRoutes } from './routes/assumptions.js';
 import { modelsRoutes } from './routes/models.js';
 import { reportsRoutes } from './routes/reports.js';
+import { dealCreateRoutes } from './routes/deal-create.js';
+import { alertRoutes } from './routes/alerts.js';
+import { recommendationRoutes } from './routes/recommendations.js';
+import { revaluationRoutes } from './routes/revaluation.js';
+import { lpPortalRoutes } from './routes/lp-portal.js';
+import { fundAdminRoutes } from './routes/fund-admin.js';
+import { portfolioRoutes } from './routes/portfolio.js';
+import { websocketRoutes } from './routes/websocket.js';
 
 let cachedApp: FastifyInstance | null = null;
 
@@ -86,11 +94,19 @@ export async function buildApp(): Promise<FastifyInstance> {
   await assumptionRoutes(app, db);
   await modelsRoutes(app, db);
   await reportsRoutes(app, db);
+  await dealCreateRoutes(app, db, natsBus);
+  await alertRoutes(app, db);
+  await recommendationRoutes(app, db);
+  await revaluationRoutes(app, db);
+  await lpPortalRoutes(app, db);
+  await fundAdminRoutes(app, db);
+  await portfolioRoutes(app, db);
+  await websocketRoutes(app);
 
   app.get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }));
   app.get('/', () => ({
     name: 'V3 Grand API',
-    version: '2.0.0',
+    version: '3.0.0',
     health: '/health',
     login: '/auth/login',
     deals: '/deals',
@@ -98,6 +114,13 @@ export async function buildApp(): Promise<FastifyInstance> {
     compliance: '/compliance/controls',
     validation: '/validation/models',
     agent: '/agent/chat',
+    alerts: '/deals/:id/alerts',
+    recommendations: '/deals/:id/recommendations/history',
+    revaluation: '/deals/:id/revalue',
+    lpPortal: '/lp/dashboard',
+    fundWaterfall: '/fund/:id/waterfall',
+    portfolio: '/portfolio/overview',
+    ws: '/ws/deals/:dealId',
   }));
 
   cachedApp = app;

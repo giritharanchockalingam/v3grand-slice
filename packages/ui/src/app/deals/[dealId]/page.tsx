@@ -24,6 +24,7 @@ import { SensitivityAnalysis } from '../../../components/analysis/SensitivityAna
 import { ExportPanel } from '../../../components/export/ExportPanel';
 import { useAuth } from '../../../lib/auth-context';
 import { MarketIntelligenceTab } from '../../../components/dashboard/MarketIntelligenceTab';
+import { PartnerWalkthrough } from '../../../components/dashboard/PartnerWalkthrough';
 import { FeasibilityWorkbench } from '../../../components/feasibility/FeasibilityWorkbench';
 import {
   TabDashboardIcon,
@@ -160,6 +161,9 @@ export default function DealDashboardPage() {
                     {(property as any).location.city}, {(property as any).location.state}
                   </span>
                 )}
+              </div>
+              <div className="mt-4">
+                <PartnerWalkthrough data={data} />
               </div>
             </div>
 

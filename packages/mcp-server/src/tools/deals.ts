@@ -6,6 +6,7 @@ import type { ProFormaOutput } from '@v3grand/core';
 import {
   getDealById,
   listDeals,
+  listDealsByUser,
   getLatestEngineResultByScenario,
   getLatestRecommendation,
   getLatestEngineResult,
@@ -15,13 +16,36 @@ import {
 } from '@v3grand/db';
 import { toolResultSuccess, toolResultError, toHandlerContent, MCPErrorCode } from '../errors.js';
 
+type ToolContext = { userId?: string; role?: string };
+type ToolContentItem = { type: 'text'; text: string } | { type: 'data'; data?: unknown };
+
 type Server = {
   registerTool(
     name: string,
     inputSchema: z.ZodType,
-    handler: (args: unknown) => Promise<{ content: Array<{ type: 'text'; text: string }> }>,
+    handler: (
+      args: unknown,
+      context?: ToolContext,
+    ) => Promise<{ content: ToolContentItem[]; isError?: boolean }>,
   ): void;
 };
+
+function buildListDealsTiles(
+  deals: Array<{ id?: string; name?: string }>,
+  total: number,
+): Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }> {
+  const tiles: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }> = [];
+  const summary = deals.length === 0 ? 'No deals found.' : `Found ${total} deal(s).`;
+  tiles.push({ type: 'section', title: 'Your deals', body: summary });
+  if (deals.length > 0) {
+    tiles.push({
+      type: 'list',
+      title: 'Deals',
+      items: deals.map((d) => `${d.name ?? 'Unnamed'} (${d.id ?? '—'})`),
+    });
+  }
+  return tiles;
+}
 
 export function registerDealTools(server: Server, db: PostgresJsDatabase): void {
   server.registerTool(
@@ -29,10 +53,12 @@ export function registerDealTools(server: Server, db: PostgresJsDatabase): void 
     z.object({
       limit: z.number().int().min(1).max(100).optional().describe('Max number of deals to return (default 20)'),
     }),
-    async (args) => {
+    async (args, context) => {
       const limit = (args as { limit?: number }).limit ?? 20;
       try {
-        const rows = await listDeals(db);
+        const rows = context?.userId
+          ? await listDealsByUser(db, context.userId)
+          : await listDeals(db);
         const deals = rows.slice(0, limit).map((d) => ({
           id: d.id,
           name: d.name,
@@ -41,11 +67,20 @@ export function registerDealTools(server: Server, db: PostgresJsDatabase): void 
           lifecyclePhase: d.lifecyclePhase,
           updatedAt: d.updatedAt?.toISOString?.() ?? '',
         }));
-        const result = toolResultSuccess(`Found ${deals.length} deal(s).`, { deals, total: rows.length });
-        return { content: toHandlerContent(result) };
+        const total = rows.length;
+        const tiles = buildListDealsTiles(deals, total);
+        const text = `Found ${deals.length} deal(s).`;
+        const jsonText = JSON.stringify({ deals, total });
+        return {
+          content: [
+            { type: 'text', text },
+            { type: 'text', text: jsonText },
+            { type: 'data', data: { deals, total, tiles } },
+          ],
+        };
       } catch (e) {
         const result = toolResultError(e instanceof Error ? e.message : 'list_deals failed', MCPErrorCode.DATABASE_ERROR);
-        return { content: toHandlerContent(result) };
+        return { content: toHandlerContent(result), isError: true };
       }
     },
   );
@@ -53,7 +88,7 @@ export function registerDealTools(server: Server, db: PostgresJsDatabase): void 
   server.registerTool(
     'get_deal',
     z.object({ dealId: z.string().uuid().describe('Deal UUID') }),
-    async (args) => {
+    async (args, _context) => {
       const { dealId } = args as { dealId: string };
       try {
         const deal = await getDealById(db, dealId);
@@ -92,7 +127,7 @@ export function registerDealTools(server: Server, db: PostgresJsDatabase): void 
   server.registerTool(
     'get_deal_dashboard',
     z.object({ dealId: z.string().uuid().describe('Deal UUID') }),
-    async (args) => {
+    async (args, _context) => {
       const { dealId } = args as { dealId: string };
       try {
         const view = await buildDashboardView(db, dealId);

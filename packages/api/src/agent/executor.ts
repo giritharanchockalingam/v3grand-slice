@@ -1,11 +1,13 @@
 /**
- * Executes an ExecutionPlan (steps in order, then verification) and returns ExecutionReport.
+ * Executes an ExecutionPlan (steps in order, then verification, then optional rollback on failure).
  * Uses in-process tool runner; no HTTP to MCP.
+ * HMS Aurora–aligned: optional ToolContext (userId) for list_deals; rollback phase when status === 'failed'.
  */
 
-import type { AgentToolRunner } from '@v3grand/mcp-server/agent-tools';
+import type { AgentToolRunner, ToolContentItem } from '@v3grand/mcp-server/agent-tools';
 import type {
   ExecutionPlan,
+  WorkflowStep,
   StepResult,
   VerificationCheck,
   VerificationResult,
@@ -18,6 +20,16 @@ import type {
 import { resolveStepRefs, getValueFromToolContent } from './workflow-registry.js';
 
 type ContentItem = { type: string; text?: string };
+
+function toContentItem(c: ToolContentItem): ContentItem {
+  return { type: c.type, text: c.type === 'text' ? c.text : undefined };
+}
+
+function toMCPContent(c: ToolContentItem): MCPContent {
+  if (c.type === 'text') return { type: 'text', text: c.text };
+  if (c.type === 'data') return { type: 'json', text: c.data !== undefined ? JSON.stringify(c.data) : undefined };
+  return { type: 'text', text: undefined };
+}
 
 function topologicalSort(steps: ExecutionPlan['steps']): ExecutionPlan['steps'] {
   const byId = new Map(steps.map((s) => [s.id, s]));
@@ -63,19 +75,17 @@ function evaluateAssertion(actual: unknown, rule: AssertionRule): boolean {
   }
 }
 
-function toContentItem(c: MCPContent): ContentItem {
-  return { type: c.type ?? 'text', text: c.text };
-}
-
 export async function executePlan(
   plan: ExecutionPlan,
   toolRunner: AgentToolRunner,
+  context?: { userId?: string },
 ): Promise<ExecutionReport> {
   const startedAt = new Date();
   const stepResults: StepResult[] = [];
   const stepContent = new Map<string, ContentItem[]>();
   const errors: OrchestrationError[] = [];
   let status: WorkflowStatus = 'executing';
+  const toolContext = context?.userId != null ? { userId: context.userId } : undefined;
 
   const sortedSteps = topologicalSort(plan.steps);
 
@@ -121,16 +131,15 @@ export async function executePlan(
       }
       if (status === 'failed') break;
 
-      const raw = await toolRunner.callTool(step.tool, resolvedArgs);
+      const raw = await toolRunner.callTool(step.tool, resolvedArgs, toolContext);
       const content = (raw.content || []).map(toContentItem);
       stepContent.set(step.id, content);
 
       // Treat as failed only if the tool's message (first text item) indicates error, not arbitrary "error" in JSON payload
-      const firstText = raw.content?.find((c: { type: string; text?: string }) => c.type === 'text' && c.text);
-      const messageText = firstText?.text ?? '';
+      const firstText = raw.content?.find((c): c is { type: 'text'; text: string } => c.type === 'text' && 'text' in c && !!c.text)?.text ?? '';
       const success =
-        !messageText.toLowerCase().includes('error') &&
-        !messageText.startsWith('[') && // MCP error codes e.g. [DEAL_NOT_FOUND]
+        !firstText.toLowerCase().includes('error') &&
+        !firstText.startsWith('[') && // MCP error codes e.g. [DEAL_NOT_FOUND]
         !(raw as { isError?: boolean }).isError;
       const stepStatus = success ? 'success' : 'failed';
 
@@ -142,7 +151,7 @@ export async function executePlan(
         description: step.description,
         result: {
           success: stepStatus === 'success',
-          content: raw.content?.map((c) => ({ type: c.type, text: c.text })) ?? [],
+          content: raw.content?.map(toMCPContent) ?? [],
         },
         durationMs: Date.now() - stepStart,
         timestamp: new Date().toISOString(),
@@ -151,7 +160,7 @@ export async function executePlan(
 
       if (stepStatus === 'failed') {
         status = 'failed';
-        const toolMessage = messageText.trim().slice(0, 500);
+        const toolMessage = firstText.trim().slice(0, 500);
         errors.push({
           code: 'MCP_SERVER_ERROR',
           message: toolMessage
@@ -159,7 +168,7 @@ export async function executePlan(
             : `Step ${step.id} returned error content`,
           server: step.server,
           tool: step.tool,
-          ...(toolMessage && { details: { toolMessage: messageText.trim() } }),
+          ...(toolMessage && { details: { toolMessage: firstText.trim() } }),
           timestamp: new Date().toISOString(),
         });
         break;
@@ -205,7 +214,7 @@ export async function executePlan(
           check.args as Record<string, unknown>,
           stepContent,
         );
-        const raw = await toolRunner.callTool(check.tool, resolvedArgs);
+        const raw = await toolRunner.callTool(check.tool, resolvedArgs, toolContext);
         const content = (raw.content || []).map(toContentItem);
         const actualValue = getValueFromToolContent(content, check.assertion.field);
         const passed = evaluateAssertion(actualValue, check.assertion);
@@ -263,6 +272,33 @@ export async function executePlan(
     if (status === 'verifying') status = 'verified';
   }
 
+  // HMS Aurora–aligned: optional rollback when failed and steps define rollbackTool
+  if (status === 'failed') {
+    let rollbackRan = false;
+    for (let i = sortedSteps.length - 1; i >= 0; i--) {
+      const step = sortedSteps[i] as WorkflowStep;
+      if (!step.rollbackTool || !step.rollbackArgs) continue;
+      rollbackRan = true;
+      try {
+        const resolvedRollbackArgs = resolveStepRefs(
+          step.rollbackArgs as Record<string, unknown>,
+          stepContent,
+        );
+        await toolRunner.callTool(step.rollbackTool, resolvedRollbackArgs, toolContext);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push({
+          code: 'ROLLBACK_FAILED',
+          message: `Rollback for step ${step.id}: ${msg}`,
+          server: step.server,
+          tool: step.rollbackTool,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+    if (rollbackRan) status = 'rolled_back';
+  }
+
   const completedAt = new Date();
   const totalDurationMs = completedAt.getTime() - startedAt.getTime();
   const summary =
@@ -270,9 +306,11 @@ export async function executePlan(
       ? warnings.length > 0
         ? `Completed with ${warnings.length} warning(s): ${stepResults.length} steps, ${verificationResults.filter((r) => r.passed).length}/${verificationResults.length} checks passed.`
         : `Completed: ${stepResults.length} steps, ${verificationResults.length} checks passed.`
-      : status === 'failed'
-        ? `Failed: ${errors.map((e) => e.message).join('; ')}`
-        : 'Execution incomplete.';
+      : status === 'rolled_back'
+        ? `Failed then rolled back: ${errors.map((e) => e.message).join('; ')}`
+        : status === 'failed'
+          ? `Failed: ${errors.map((e) => e.message).join('; ')}`
+          : 'Execution incomplete.';
 
   return {
     planId: plan.planId,
