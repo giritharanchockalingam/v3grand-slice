@@ -79,8 +79,21 @@ export function AssumptionEditor({ dealId }: { dealId: string }) {
 
   // Load deal
   useEffect(() => {
-    api.get<any>(`/deals/${dealId}`).then(setDeal);
+    api.get<any>(`/deals/${dealId}`).then((d) => setDeal(normalizeDealFromServer(d)));
   }, [dealId]);
+
+  function normalizeDealFromServer(d: any) {
+    if (!d) return d;
+    const market = d.marketAssumptions ?? d.market_assumptions ?? {};
+    const financial = d.financialAssumptions ?? d.financial_assumptions ?? {};
+    return {
+      ...d,
+      marketAssumptions: market,
+      market_assumptions: market,
+      financialAssumptions: financial,
+      financial_assumptions: financial,
+    };
+  }
 
   if (!deal) return <div className="text-sm text-gray-400 p-4">Loading assumptions...</div>;
 
@@ -115,9 +128,19 @@ export function AssumptionEditor({ dealId }: { dealId: string }) {
       });
       setResult(res);
       setDirty(false);
+      // Sync local state from server so sliders stay correct after save/recompute
+      const serverDeal = res?.deal;
+      if (serverDeal) {
+        setDeal(normalizeDealFromServer(serverDeal));
+      } else {
+        const refreshed = await api.get<any>(`/deals/${dealId}`);
+        setDeal(normalizeDealFromServer(refreshed));
+      }
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId] });
     } catch (e: any) {
       setResult({ error: e.message });
+      // Don't clear dirty so user can retry without re-entering
     } finally {
       setSaving(false);
     }
@@ -173,7 +196,14 @@ export function AssumptionEditor({ dealId }: { dealId: string }) {
       )}
       {result?.error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          Error: {result.error}
+          {result.deal ? (
+            <>
+              Your assumptions were saved; recompute failed. Values below are as saved.
+              <span className="block mt-1 font-medium">Error: {result.error}</span>
+            </>
+          ) : (
+            <>Error: {result.error}</>
+          )}
         </div>
       )}
     </div>

@@ -7,11 +7,14 @@
 
 import React from 'react';
 import { AgentReplyTiles } from './AgentReplyTiles';
+import { StructuredReplyTiles } from './StructuredReplyTiles';
 
 export interface ChatMessageItem {
   role: 'user' | 'assistant';
   text: string;
   toolCalls?: number;
+  /** HMS-style structured tiles from API; when present, render these instead of parsing text */
+  tiles?: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }>;
 }
 
 export interface AgentChatPanelProps {
@@ -36,7 +39,7 @@ export function AgentChatPanel({
   onSend,
   onClear,
   showClearButton = true,
-  placeholder = 'Ask about deals, stress tests, validation...',
+  placeholder = 'Ask deals, metrics, or governance…',
   className = '',
   assistantName,
   suggestedPrompts,
@@ -70,11 +73,11 @@ export function AgentChatPanel({
         {messages.length === 0 && !loading && (
           <div className="space-y-4">
             <p className="text-sm text-surface-500">
-              {assistantName ? `Ask ${assistantName} anything about deals, workflows, or metrics.` : 'Send a message to get started.'}
+              {assistantName ? `Ask ${assistantName} for deal metrics, market intel, or governance.` : 'Send a message to get started.'}
             </p>
             {suggestedPrompts && suggestedPrompts.length > 0 && (
               <div className="space-y-2">
-                <p className="section-title text-surface-500">Try asking</p>
+                <p className="section-title text-surface-500">Suggested</p>
                 <div className="flex flex-wrap gap-2">
                   {suggestedPrompts.map((prompt, i) => (
                     <button
@@ -103,12 +106,19 @@ export function AgentChatPanel({
             {m.role === 'user' ? (
               <p className="whitespace-pre-wrap">{m.text}</p>
             ) : (
-              <>
-                <AgentReplyTiles text={m.text} />
+              <div className="min-h-[2rem]">
+                {m.tiles && m.tiles.length > 0 ? (
+                  <StructuredReplyTiles tiles={m.tiles} />
+                ) : m.text?.trim() ? (
+                  <AgentReplyTiles text={m.text} />
+                ) : null}
+                {!(m.tiles && m.tiles.length > 0) && !m.text?.trim() && (
+                  <p className="text-sm text-surface-500 italic">No response. Try a suggested prompt below or check connectivity.</p>
+                )}
                 {m.toolCalls != null && m.toolCalls > 0 && (
                   <p className="text-xs text-surface-500 mt-3">Used {m.toolCalls} tool call(s)</p>
                 )}
-              </>
+              </div>
             )}
           </div>
         ))}

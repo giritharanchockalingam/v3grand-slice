@@ -300,3 +300,25 @@ export const risks = pgTable('risks', {
   dealIdx: index('risks_deal_idx').on(t.dealId),
   statusIdx: index('risks_status_idx').on(t.status),
 }));
+
+// ── IAIP: Assumption governance (FEATURE E — AGAT) ──
+export const assumptions = pgTable('assumptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dealId: uuid('deal_id').notNull().references(() => deals.id),
+  assumptionKey: varchar('assumption_key', { length: 100 }).notNull(),
+  value: jsonb('value').notNull(),
+  unit: varchar('unit', { length: 20 }),
+  owner: varchar('owner', { length: 255 }).notNull(),
+  rationale: varchar('rationale', { length: 2000 }),
+  source: varchar('source', { length: 255 }),
+  confidence: decimal('confidence', { precision: 3, scale: 2 }),
+  lastReviewedAt: timestamp('last_reviewed_at'),
+  status: varchar('status', { length: 20 }).notNull().default('draft'), // draft | reviewed | approved | locked
+  approvedBy: varchar('approved_by', { length: 255 }),
+  approvedAt: timestamp('approved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  dealStatusIdx: index('assump_deal_status').on(t.dealId, t.status),
+  uniqueDealKey: uniqueIndex('assump_deal_key').on(t.dealId, t.assumptionKey),
+}));

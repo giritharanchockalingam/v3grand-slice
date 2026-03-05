@@ -1,10 +1,12 @@
 // ─── Market Intelligence Tab ────────────────────────────────────────
 // Shows live macro indicators, city demand profile, and data freshness.
+// Every metric from the most accurate source of truth for the investment's geography.
 'use client';
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
+import { TabGlobeIcon } from '../icons/PortalIcons';
 
 interface IndicatorMeta {
   value: number;
@@ -166,7 +168,7 @@ function IndicatorCard({
   );
 }
 
-export function MarketIntelligenceTab({ city }: { city?: string }) {
+export function MarketIntelligenceTab({ city, state }: { city?: string; state?: string }) {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -221,10 +223,14 @@ export function MarketIntelligenceTab({ city }: { city?: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-bold text-surface-900 flex items-center gap-2">
-            <span className="text-base">🌐</span> Market Intelligence
+            <TabGlobeIcon className="w-5 h-5 text-brand-500" />
+            Market Intelligence
           </h2>
           <p className="text-sm text-surface-500 mt-1">
-            Live economic indicators from RBI, World Bank, FRED & data.gov.in
+            Every metric from the most accurate source of truth for the investment&apos;s geography (India macro; city-level for deal location). Used in Factor engine and recommendation.
+          </p>
+          <p className="text-2xs text-surface-400 mt-0.5">
+            Sources: RBI, MOSPI, World Bank, FRED, data.gov.in
           </p>
         </div>
         <button
@@ -240,11 +246,14 @@ export function MarketIntelligenceTab({ city }: { city?: string }) {
       </div>
 
       {/* ══════════════ MACRO INDICATORS CARD ══════════════ */}
-      <div className="elevated-card p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="section-title">India Macro Indicators</h3>
-          {macro && <SourceBadge source={macro.source} />}
-        </div>
+        <div className="elevated-card p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="section-title">India Macro Indicators</h3>
+            {macro && <SourceBadge source={macro.source} />}
+          </div>
+          <p className="text-2xs text-surface-400 mb-3">
+            Risk-free rate, inflation, growth, FX and sector supply — as used in underwriting and Factor engine.
+          </p>
 
         {macroLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -313,7 +322,11 @@ export function MarketIntelligenceTab({ city }: { city?: string }) {
           <div className="flex items-center justify-between mb-5">
             <h3 className="section-title">
               City Demand Profile — {cityProfile?.city ?? city}
-              {cityProfile?.state && <span className="font-normal text-surface-400 ml-1">({cityProfile.state})</span>}
+              {(cityProfile?.state ?? state) && (
+                <span className="font-normal text-surface-400 ml-1">
+                  ({cityProfile?.state ?? state})
+                </span>
+              )}
             </h3>
             {cityProfile && (
               <div className="flex items-center gap-2">
@@ -334,6 +347,9 @@ export function MarketIntelligenceTab({ city }: { city?: string }) {
             </div>
           ) : cityProfile ? (
             <>
+              <p className="text-2xs text-surface-400 mb-3">
+                City-level data from deal location. Sources: AAI/data.gov.in (airport), Ministry of Tourism (tourists), RBI HPI (housing).
+              </p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="metric-card">
                   <p className="stat-label mb-1">Airport Passengers</p>
@@ -366,7 +382,12 @@ export function MarketIntelligenceTab({ city }: { city?: string }) {
               {demand && (
                 <div className="rounded-xl bg-surface-50/50 border border-surface-200/60 p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-semibold text-surface-700">Composite Demand Score</p>
+                    <div>
+                      <p className="text-sm font-semibold text-surface-700">Composite Demand Score</p>
+                      <p className="text-2xs text-surface-400 mt-0.5">
+                        Feeds Factor engine and recommendation (weights: Tourism 40%, Air traffic 30%, GDP 30%)
+                      </p>
+                    </div>
                     <span className="text-lg font-bold text-brand-700">{demand.compositeScore}/100</span>
                   </div>
                   <div className="w-full h-3 bg-surface-200 rounded-full overflow-hidden">

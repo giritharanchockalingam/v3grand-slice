@@ -170,6 +170,30 @@ Use this checklist to verify API and UI connectivity:
 3. Click "+ Add Risk" → fill form → Save
 4. Mark existing risks as Mitigated / Accepted / Closed
 
+## IAIP features (where to find them)
+
+The **Feasibility Workbench**, **assumption governance (FEATURE E)**, **IC memo generate**, and **backtest** live inside the **deal dashboard** and API. You do **not** need to redeploy or reinstall unless you changed dependencies.
+
+**If you don’t see the new features:**
+
+| Step | Action |
+|------|--------|
+| 1. Migrations | Run **`pnpm db:migrate`** (or **`pnpm migrate:supabase`** if using Supabase) so IAIP tables exist (`assumptions`, `scenario_runs`, `reports`, etc.). Local migrate rewrites `v3grand.` → `public.` automatically. |
+| 2. Run app | Start API + UI: **`pnpm dev`** (or `./scripts/local-deploy.sh` / `./scripts/local-deploy-supabase.sh`). No need to reinstall (`pnpm install`) unless you pulled new dependencies. |
+| 3. Open a deal | Go to **Deals** → click a deal (e.g. **V3 Grand Madurai Hotel**). |
+
+**Where each feature is:**
+
+| Feature | Location |
+|--------|----------|
+| **Feasibility Workbench** | Deal dashboard → **Feasibility** tab (scenario toggles Base/Downside/Upside, assumptions table with status/approve, tornado placeholder, “Generate IC memo” button). |
+| **Assumption governance (draft → approved → locked)** | Same **Feasibility** tab → “Assumption governance (FEATURE E)” table; or **Assumptions** tab for the existing slider-based market/financial assumptions. |
+| **Generate IC memo** | Deal dashboard → **Feasibility** tab → “Reporting” section → **Generate IC memo**; response appears as JSON below. |
+| **Backtest** | API only: **POST /models/backtest/run** (body: `engineName`, `testDealIds`, `metricKey`). No UI button yet. |
+| **Assumptions API** | **GET /deals/:id/assumptions**, **PATCH /deals/:id/assumptions/:key**, **POST /deals/:id/assumptions/:key/approve**. Used by the Feasibility tab. |
+
+If the **Feasibility** tab is missing, ensure the UI was built after the latest code: `pnpm build` then `pnpm dev`, or clear Next cache: `rm -rf packages/ui/.next` then `pnpm dev`.
+
 ## Re-Seeding
 
 To reset the database and start fresh:

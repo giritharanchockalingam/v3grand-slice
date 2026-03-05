@@ -20,6 +20,9 @@ import { insertMarketDataHistory } from '@v3grand/db';
 import { marketRoutes } from './routes/market.js';
 import { agentRoutes } from './routes/agent.js';
 import { registerSecurityMiddleware } from './middleware/rate-limit.js';
+import { assumptionRoutes } from './routes/assumptions.js';
+import { modelsRoutes } from './routes/models.js';
+import { reportsRoutes } from './routes/reports.js';
 
 let cachedApp: FastifyInstance | null = null;
 
@@ -80,6 +83,9 @@ export async function buildApp(): Promise<FastifyInstance> {
   await sseRoutes(app);
   await marketRoutes(app, marketService);
   await agentRoutes(app, db, marketService);
+  await assumptionRoutes(app, db);
+  await modelsRoutes(app, db);
+  await reportsRoutes(app, db);
 
   app.get('/health', () => ({ status: 'ok', timestamp: new Date().toISOString() }));
   app.get('/', () => ({

@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory, assumptions } from '../schema/index.js';
 
 type DB = PostgresJsDatabase;
 
@@ -786,4 +786,38 @@ export async function insertMarketDataHistory(
     changeReason: e.changeReason ?? null,
   }));
   await db.insert(marketDataHistory).values(rows);
+}
+
+export async function listAssumptionsByDeal(db: DB, dealId: string) {
+  return db.select().from(assumptions).where(eq(assumptions.dealId, dealId)).orderBy(assumptions.assumptionKey);
+}
+
+export async function getAssumption(db: DB, dealId: string, assumptionKey: string) {
+  const [row] = await db.select().from(assumptions)
+    .where(and(eq(assumptions.dealId, dealId), eq(assumptions.assumptionKey, assumptionKey)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function upsertAssumption(db: DB, dealId: string, data: {
+  assumptionKey: string; value: unknown; unit?: string; owner: string; rationale?: string; source?: string; confidence?: number; status?: 'draft' | 'reviewed' | 'approved' | 'locked';
+}) {
+  const now = new Date();
+  const existing = await getAssumption(db, dealId, data.assumptionKey);
+  const payload = { dealId, assumptionKey: data.assumptionKey, value: data.value, unit: data.unit ?? null, owner: data.owner, rationale: data.rationale ?? null, source: data.source ?? null, confidence: data.confidence != null ? String(data.confidence) : null, lastReviewedAt: null, status: (data.status ?? 'draft') as 'draft' | 'reviewed' | 'approved' | 'locked', approvedBy: null, approvedAt: null, updatedAt: now };
+  if (existing) {
+    const [row] = await db.update(assumptions).set(payload).where(and(eq(assumptions.dealId, dealId), eq(assumptions.assumptionKey, data.assumptionKey))).returning();
+    return row!;
+  }
+  const [row] = await db.insert(assumptions).values({ ...payload, createdAt: now }).returning();
+  return row!;
+}
+
+export async function updateAssumptionStatus(db: DB, dealId: string, assumptionKey: string, status: 'draft' | 'reviewed' | 'approved' | 'locked', approvedBy?: string) {
+  const now = new Date();
+  const set: Record<string, unknown> = { status, updatedAt: now };
+  if (status === 'reviewed') set.lastReviewedAt = now;
+  if (status === 'approved' || status === 'locked') { set.approvedBy = approvedBy ?? null; set.approvedAt = now; }
+  const [row] = await db.update(assumptions).set(set).where(and(eq(assumptions.dealId, dealId), eq(assumptions.assumptionKey, assumptionKey))).returning();
+  return row ?? null;
 }

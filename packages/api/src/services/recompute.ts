@@ -83,7 +83,7 @@ async function insertHashedEngineResult(
 }
 
 /** Reconstitute a Deal object from DB row */
-function reconstituteDeal(dealRow: any): Deal {
+export function reconstituteDeal(dealRow: any): Deal {
   return {
     id: dealRow.id,
     name: dealRow.name,

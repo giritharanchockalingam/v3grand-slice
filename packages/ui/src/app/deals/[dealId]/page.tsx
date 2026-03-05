@@ -24,6 +24,7 @@ import { SensitivityAnalysis } from '../../../components/analysis/SensitivityAna
 import { ExportPanel } from '../../../components/export/ExportPanel';
 import { useAuth } from '../../../lib/auth-context';
 import { MarketIntelligenceTab } from '../../../components/dashboard/MarketIntelligenceTab';
+import { FeasibilityWorkbench } from '../../../components/feasibility/FeasibilityWorkbench';
 import {
   TabDashboardIcon,
   TabChartIcon,
@@ -34,9 +35,10 @@ import {
   TabFlaskIcon,
   TabRefreshIcon,
   TabClipboardIcon,
+  TabFeasibilityIcon,
 } from '../../../components/icons/PortalIcons';
 
-type TabKey = 'overview' | 'underwriting' | 'construction' | 'risks' | 'assumptions' | 'market-intel' | 'sensitivity' | 'revaluation' | 'audit';
+type TabKey = 'overview' | 'underwriting' | 'construction' | 'risks' | 'assumptions' | 'feasibility' | 'market-intel' | 'sensitivity' | 'revaluation' | 'audit';
 
 const TABS: Array<{ key: TabKey; label: string; Icon: React.ComponentType<{ className?: string }>; requiresConstruction?: boolean }> = [
   { key: 'overview', label: 'Dashboard', Icon: TabDashboardIcon },
@@ -44,6 +46,7 @@ const TABS: Array<{ key: TabKey; label: string; Icon: React.ComponentType<{ clas
   { key: 'construction', label: 'Construction', Icon: TabConstructionIcon, requiresConstruction: true },
   { key: 'risks', label: 'Risks', Icon: TabRiskIcon },
   { key: 'assumptions', label: 'Assumptions', Icon: TabSettingsIcon },
+  { key: 'feasibility', label: 'Feasibility', Icon: TabFeasibilityIcon },
   { key: 'market-intel', label: 'Market Intel', Icon: TabGlobeIcon },
   { key: 'sensitivity', label: 'What-If', Icon: TabFlaskIcon },
   { key: 'revaluation', label: 'Revaluation', Icon: TabRefreshIcon },
@@ -416,10 +419,17 @@ export default function DealDashboardPage() {
         </div>
       )}
 
+      {/* ────── FEASIBILITY TAB ────── */}
+      {tab === 'feasibility' && (
+        <div className="animate-slide-up">
+          <FeasibilityWorkbench dealId={dealId} />
+        </div>
+      )}
+
       {/* ────── MARKET INTEL TAB ────── */}
       {tab === 'market-intel' && (
         <div className="animate-slide-up">
-          <MarketIntelligenceTab city={(property as any)?.location?.city} />
+          <MarketIntelligenceTab city={(property as any)?.location?.city} state={(property as any)?.location?.state} />
         </div>
       )}
 

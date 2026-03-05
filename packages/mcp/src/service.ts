@@ -318,7 +318,9 @@ export class MarketDataService {
       housingGrowthPct: housingData?.growthPct ?? 0.04,
       demandOutlook,
       fetchedAt: new Date().toISOString(),
-      source: 'fallback', // Will be 'live' when data.gov.in APIs are connected
+      source: (airportData?.source === 'live' || tourismData?.source === 'live' || housingData?.source === 'live')
+        ? 'live'
+        : 'fallback',
     };
 
     await this.cache.set(cacheKey, result, TTL.city, 'city-profile');

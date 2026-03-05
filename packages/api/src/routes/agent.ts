@@ -58,6 +58,7 @@ export async function agentRoutes(
       });
       return reply.send({
         reply: result.reply,
+        tiles: result.tiles ?? undefined,
         toolCallsUsed: result.toolCallsUsed,
         rounds: result.rounds,
         conversationId: body.conversationId ?? null,

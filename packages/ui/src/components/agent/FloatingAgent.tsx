@@ -12,9 +12,13 @@ import { AgentChatPanel, type ChatMessageItem } from './AgentChatPanel';
 import Link from 'next/link';
 import { AGENT_NAME } from '@/lib/agent-constants';
 
-type AgentChatResponse = { reply: string; toolCallsUsed?: number };
+type AgentChatResponse = {
+  reply: string;
+  tiles?: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }>;
+  toolCallsUsed?: string[] | number;
+};
 
-const PANEL_HEIGHT = 'min(420px, 65vh)';
+const PANEL_HEIGHT = 'min(520px, 75vh)';
 
 export function FloatingAgent() {
   const { user } = useAuth();
@@ -29,7 +33,12 @@ export function FloatingAgent() {
       const res = await api.post<AgentChatResponse>('/agent/chat', { message });
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: res.reply ?? '', toolCalls: res.toolCallsUsed },
+        {
+          role: 'assistant',
+          text: typeof res.reply === 'string' ? res.reply : (res.reply ?? 'No response. Please try again.'),
+          toolCalls: Array.isArray(res.toolCallsUsed) ? res.toolCallsUsed.length : (res.toolCallsUsed as number | undefined),
+          tiles: res.tiles && res.tiles.length > 0 ? res.tiles : undefined,
+        },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -85,7 +94,7 @@ export function FloatingAgent() {
           />
           <div
             className="relative w-full max-w-lg mx-auto rounded-t-2xl sm:rounded-2xl bg-white border border-surface-200 shadow-2xl overflow-hidden pointer-events-auto flex flex-col"
-            style={{ height: PANEL_HEIGHT, maxHeight: '65vh' }}
+            style={{ height: PANEL_HEIGHT, maxHeight: '75vh' }}
             role="dialog"
             aria-label={AGENT_NAME}
           >
@@ -126,7 +135,13 @@ export function FloatingAgent() {
                 onClear={handleClear}
                 showClearButton
                 assistantName={AGENT_NAME}
-                suggestedPrompts={['What is WACC?', 'List my deals', 'How is EBITDA calculated?']}
+                suggestedPrompts={[
+                  'Market intel factors and why they matter',
+                  'WACC and hurdle rate',
+                  'List my deals',
+                  'How EBITDA is used here',
+                ]}
+                placeholder="Deals, metrics, or governance…"
                 compact
               />
             </div>

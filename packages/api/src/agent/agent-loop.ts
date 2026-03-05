@@ -20,7 +20,12 @@ Rules:
 - Prefer listing deals first (list_deals) then fetching a specific deal or dashboard (get_deal, get_deal_dashboard) when the user refers to "the deal" or a name.
 - For stress tests or sensitivity, you need a dealId; get it from list_deals or get_deal_dashboard.
 - Keep answers concise but complete. Include key numbers from tool results when relevant.
-- Format replies for readability: use a short heading (e.g. ## Topic) then a brief definition; use bullet points (• or -) for lists of terms or steps; use plain text for formulas (e.g. WACC = (cost of equity × E/(D+E)) + (after-tax cost of debt × D/(D+E))). Do not use LaTeX or display math (no \\[ \\] or \\( \\)); the UI shows plain text only.`;
+- Format replies for readability: use a short heading (e.g. ## Topic) then a brief definition; use bullet points (• or -) for lists of terms or steps; use plain text for formulas (e.g. WACC = (cost of equity × E/(D+E)) + (after-tax cost of debt × D/(D+E))). Do not use LaTeX or display math (no \\[ \\] or \\( \\)); the UI shows plain text only.
+
+When the user asks "what are the market intel factors?" or "why are market intel factors considered?" or "market intel factors and why they matter" (or similar), call **get_market_intel_factors** and return the tool result (do not rewrite).
+When the user asks about "WACC", "hurdle rate", "discount rate", or "WACC and hurdle rate", call **get_wacc_hurdle_explainer** and return the tool result (do not rewrite).
+When the user asks about "EBITDA", "how EBITDA is used", or "GOP" in this portal, call **get_ebitda_explainer** and return the tool result (do not rewrite).
+For these tools you must call the tool and then the system will return the formatted answer; do not strip or rewrite the content.`;
 
 /** RAG-style context enrichment: retrieve deals (and optional macro) so the LLM has grounded context before the first turn. */
 async function buildRetrievedContext(toolRunner: AgentToolRunner): Promise<string> {
@@ -63,6 +68,8 @@ export interface AgentResult {
   reply: string;
   toolCallsUsed: string[];
   rounds: number;
+  /** HMS-style structured tiles; when present, UI should render these instead of parsing reply markdown */
+  tiles?: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }>;
 }
 
 export async function runAgentLoop(
@@ -133,14 +140,27 @@ export async function runAgentLoop(
           args = {};
         }
       }
+      let toolContent = '';
       try {
         const result = await toolRunner.callTool(name, args);
-        const content = result.content.map((c) => c.text).filter(Boolean).join('\n');
+        const contentArr = result.content as Array<{ type: string; text?: string; data?: { tiles?: unknown[] } }>;
+        toolContent = contentArr.filter((c) => c.type === 'text').map((c) => c.text).filter(Boolean).join('\n');
+        const tiles = contentArr.find((c) => c.type === 'data')?.data?.tiles as AgentResult['tiles'] | undefined;
         messages.push({
           role: 'tool',
           tool_call_id: tc.id!,
-          content: content || 'OK',
+          content: toolContent || 'OK',
         });
+        // Return tool output directly for canonical explainers; include structured tiles (HMS-style) when present
+        const canonicalTools = ['get_market_intel_factors', 'get_wacc_hurdle_explainer', 'get_ebitda_explainer'];
+        if (canonicalTools.includes(name) && (toolContent.trim() || (tiles && tiles.length > 0))) {
+          return {
+            reply: toolContent.trim() || 'Content is listed below.',
+            tiles: tiles && tiles.length > 0 ? tiles : undefined,
+            toolCallsUsed,
+            rounds,
+          };
+        }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         messages.push({

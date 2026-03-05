@@ -106,6 +106,22 @@ function renderBlock(block: string): React.ReactNode {
         i += 1;
       }
       nodes.push(<ul key={`ul-${i}`} className="list-none space-y-1.5 my-2 pl-0">{listItems}</ul>);
+    } else if (/^\d+\.?\s*$/.test(trimmed)) {
+      // Consecutive lines that are just numbers (e.g. "1" or "2.") — coalesce into one compact list to avoid 22 separate paragraph tiles
+      const numberLines: string[] = [];
+      while (i < lines.length && /^\d+\.?\s*$/.test(lines[i].trim())) {
+        numberLines.push(lines[i].trim());
+        i += 1;
+      }
+      if (numberLines.length > 1) {
+        nodes.push(
+          <p key={`num-${i}`} className="text-sm text-surface-500 my-2">
+            {numberLines.join(', ')}
+          </p>
+        );
+      } else {
+        nodes.push(<p key={i} className="text-sm text-surface-800 mb-2 last:mb-0 leading-relaxed">{renderInlineFormatting(trimmed)}</p>);
+      }
     } else {
       nodes.push(<p key={i} className="text-sm text-surface-800 mb-2 last:mb-0 leading-relaxed">{renderInlineFormatting(trimmed)}</p>);
       i += 1;
@@ -123,9 +139,24 @@ function getTileIcon(block: string): 'section' | 'list' | 'paragraph' {
 }
 
 export function AgentReplyTiles({ text, className = '' }: AgentReplyTilesProps) {
-  const normalized = plainTextFormula(text);
-  const blocks = splitIntoBlocks(normalized);
-  if (blocks.length === 0) return null;
+  const normalized = plainTextFormula(text || '');
+  let blocks = splitIntoBlocks(normalized);
+  // If no blocks but we have any text, treat entire string as one block so we never show a blank/placeholder
+  if (blocks.length === 0 && normalized.trim()) {
+    blocks = [normalized.trim()];
+  }
+  // Final guard: still no blocks (e.g. empty string) — render raw text as one paragraph so parent never gets null
+  if (blocks.length === 0) {
+    return text?.trim() ? (
+      <div className={`space-y-3 ${className}`}>
+        <div className="rounded-xl border border-surface-200 bg-white shadow-sm overflow-hidden">
+          <div className="p-4">
+            <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">{text.trim()}</p>
+          </div>
+        </div>
+      </div>
+    ) : null;
+  }
 
   return (
     <div className={`space-y-3 ${className}`}>

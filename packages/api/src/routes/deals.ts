@@ -6,8 +6,9 @@ import { logger } from '@v3grand/core';
 import {
   getDealById, updateDealAssumptions, updateDealActiveScenario,
   listDeals, listDealsByUser, checkDealAccess,
-  getLatestEngineResult, getLatestRecommendation, getRecentAudit,
+  getLatestEngineResult, getLatestRecommendation, getLatestRecommendationByScenario,
   getLatestEngineResultByScenario, getScenarioResults, getScenarioRecommendations,
+  getRecentAudit,
   insertAuditEntry, getConstructionSummary,
   createDeal, updateDealCurrentMonth, updateDealStatus,
   getRecommendationHistory, getEngineResultHistory,
@@ -15,7 +16,8 @@ import {
 } from '@v3grand/db';
 import { recommendations } from '@v3grand/db';
 import { eq, desc } from 'drizzle-orm';
-import { recomputeDeal } from '../services/recompute.js';
+import { recomputeDeal, reconstituteDeal } from '../services/recompute.js';
+import { buildProForma } from '@v3grand/engines';
 import { requiresApproval, createPendingAction } from '../services/approval.js';
 import { authGuard, attachUser, requireRole } from '../middleware/auth.js';
 import type { NatsEventBus } from '../nats-event-bus.js';
@@ -142,6 +144,9 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
       financialAssumptions: updatedFinancial,
     });
 
+    // Re-fetch the deal so we can return the persisted state (single source of truth)
+    const updatedDeal = await getDealById(db, id);
+
     await insertAuditEntry(db, {
       dealId: id, userId: user.userId, role: user.role,
       module: 'assumptions', action: 'assumption.updated',
@@ -164,6 +169,7 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
             npv: result.proforma.npv,
             equityMultiple: result.proforma.equityMultiple,
           } : null,
+          deal: updatedDeal ?? undefined,
         });
       }
 
@@ -186,12 +192,16 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
           npv: result.proforma.npv,
           equityMultiple: result.proforma.equityMultiple,
         },
+        deal: updatedDeal ?? undefined,
       };
     } catch (err) {
       logger.error('route.assumptions.recompute_crash', { dealId: id, error: String(err) });
-      return reply.code(500).send({
-        message: 'Assumptions saved but recompute failed',
+      // Assumptions were already persisted; return 207 so client can still sync deal state
+      const dealAfterSave = await getDealById(db, id);
+      return reply.code(207).send({
+        message: 'Assumptions saved but recompute failed — prior results preserved',
         error: 'Engine cascade crashed — prior results preserved',
+        deal: dealAfterSave ?? undefined,
       });
     }
   });
@@ -338,6 +348,7 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
         currentMonth: dealRow.currentMonth,
         version: dealRow.version,
       },
+      activeScenario: dealRow.activeScenarioKey,
       property: dealRow.property,
       partnership: dealRow.partnership,
       marketAssumptions: dealRow.marketAssumptions,
@@ -417,26 +428,168 @@ export async function dealRoutes(app: FastifyInstance, db: PostgresJsDatabase, n
         }
       : null;
 
+    const bearPf = formatProforma(uwResults.bear);
+    const basePf = formatProforma(uwResults.base);
+    const bullPf = formatProforma(uwResults.bull);
+    const wBear = 0.2;
+    const wBase = 0.6;
+    const wBull = 0.2;
+    const expectedIRR = (bearPf?.irr ?? 0) * wBear + (basePf?.irr ?? 0) * wBase + (bullPf?.irr ?? 0) * wBull;
+    const expectedNPV = (bearPf?.npv ?? 0) * wBear + (basePf?.npv ?? 0) * wBase + (bullPf?.npv ?? 0) * wBull;
+
     return {
       dealId: id,
       activeScenario: dealRow.activeScenarioKey,
+      probabilityWeights: { bear: wBear, base: wBase, bull: wBull },
+      expectedIRR,
+      expectedNPV,
       scenarios: {
         bear: {
           scenarioKey: 'bear',
-          proforma: formatProforma(uwResults.bear),
+          proforma: bearPf,
           recommendation: formatRecommendation(recResults.bear),
         },
         base: {
           scenarioKey: 'base',
-          proforma: formatProforma(uwResults.base),
+          proforma: basePf,
           recommendation: formatRecommendation(recResults.base),
         },
         bull: {
           scenarioKey: 'bull',
-          proforma: formatProforma(uwResults.bull),
+          proforma: bullPf,
           recommendation: formatRecommendation(recResults.bull),
         },
       },
+    };
+  });
+
+  // ── GET /deals/:id/board-criteria ──
+  // Board hurdle criteria from latest base recommendation gate results (for IC memo / Feasibility).
+  app.get<{ Params: { id: string } }>('/deals/:id/board-criteria', { preHandler: authGuard }, async (req, reply) => {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+
+    const rec = await getLatestRecommendationByScenario(db, id, 'base');
+    if (!rec) return reply.code(404).send({ error: 'No base recommendation; run underwrite first' });
+
+    const gateResults = (rec.gateResults ?? []) as Array<{ name: string; passed: boolean; actual: number; threshold: number }>;
+    return {
+      dealId: id,
+      boardCriteria: gateResults.map(g => ({
+        name: g.name,
+        threshold: g.threshold,
+        actual: g.actual,
+        passed: g.passed,
+      })),
+    };
+  });
+
+  // ── GET /deals/:id/capital-structure-scenarios ──
+  // Base-case pro forma at 40%, 30%, 20% debt; for IC memo capital structure comparison.
+  app.get<{ Params: { id: string } }>('/deals/:id/capital-structure-scenarios', { preHandler: authGuard }, async (req, reply) => {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+
+    const dealRow = await getDealById(db, id);
+    if (!dealRow) return reply.code(404).send({ error: 'Deal not found' });
+
+    const deal = reconstituteDeal(dealRow);
+    const scenarios = [
+      { debtRatio: 0.4, equityRatio: 0.6 },
+      { debtRatio: 0.3, equityRatio: 0.7 },
+      { debtRatio: 0.2, equityRatio: 0.8 },
+    ] as const;
+
+    const fin = deal.financialAssumptions as { targetIRR?: number; targetDSCR?: number };
+    const targetIRR = fin?.targetIRR ?? 0.18;
+    const targetDSCR = fin?.targetDSCR ?? 1.2;
+
+    const results = scenarios.map(({ debtRatio, equityRatio }) => {
+      const pf = buildProForma({ deal, scenarioKey: 'base', overrides: { debtRatio, equityRatio } });
+      const irrOk = pf.irr >= targetIRR;
+      const dscrOk = pf.avgDSCR >= targetDSCR;
+      let riskLevel: 'conservative' | 'moderate' | 'aggressive' = 'moderate';
+      let recommendationLabel = 'Consider';
+      if (debtRatio <= 0.2) riskLevel = 'conservative';
+      else if (debtRatio >= 0.4) riskLevel = 'aggressive';
+      if (irrOk && dscrOk) recommendationLabel = 'Recommended';
+      else if (!dscrOk) recommendationLabel = 'Higher equity preferred';
+      else if (!irrOk) recommendationLabel = 'Below hurdle';
+
+      return {
+        debtPct: Math.round(debtRatio * 100),
+        equityPct: Math.round(equityRatio * 100),
+        irr: pf.irr,
+        npv: pf.npv,
+        avgDSCR: pf.avgDSCR,
+        riskLevel,
+        recommendation: recommendationLabel,
+      };
+    });
+
+    return { dealId: id, scenarios: results };
+  });
+
+  // ── GET /deals/:id/phase2-gate ──
+  // 8-point Phase 2 expansion gate (Month 36); current values from base pro forma where available.
+  app.get<{ Params: { id: string } }>('/deals/:id/phase2-gate', { preHandler: authGuard }, async (req, reply) => {
+    const { id } = req.params;
+    const user = (req as any).user;
+    const access = await checkDealAccess(db, user.userId, id);
+    if (!access) return reply.code(403).send({ error: 'No access to this deal' });
+
+    const dealRow = await getDealById(db, id);
+    if (!dealRow) return reply.code(404).send({ error: 'Deal not found' });
+
+    const uwBase = await getLatestEngineResultByScenario(db, id, 'underwriter', 'base');
+    const proforma = uwBase?.output as ProFormaOutput | undefined;
+    const years = proforma?.years ?? [];
+    // Year 2–3 (index 1–2) approximate "stabilization" for gate
+    const y2 = years[1];
+    const y3 = years[2];
+    const occPct = y2 && y3 ? (y2.occupancy + y3.occupancy) / 2 : 0;
+    const adrVal = y2 && y3 ? (y2.adr + y3.adr) / 2 : 0;
+    const ebitdaMargin = y2 && y3
+      ? ((y2.ebitdaMargin + y3.ebitdaMargin) / 2)
+      : 0;
+
+    const criteria = [
+      { name: 'Phase 1 occupancy ≥ 70%', threshold: 0.7, current: occPct, unit: '%', notes: 'From base pro forma Y2–3' },
+      { name: 'ADR ≥ ₹4,800', threshold: 4800, current: adrVal, unit: '₹', notes: 'From base pro forma Y2–3' },
+      { name: 'EBITDA margin ≥ 38%', threshold: 0.38, current: ebitdaMargin, unit: '%', notes: 'From base pro forma Y2–3' },
+      { name: 'OTA ratings ≥ 4.2', threshold: 4.2, current: null as number | null, unit: '', notes: 'TBD: link to reputation/ratings' },
+      { name: 'MOU room-nights (target)', threshold: 0, current: null as number | null, unit: '', notes: 'TBD: from revenue_anchors' },
+      { name: 'Corporate contracts ≥ 8', threshold: 8, current: null as number | null, unit: '', notes: 'TBD: from commercial pipeline' },
+      { name: 'No new 4-star within 5 km', threshold: 1, current: null as number | null, unit: '', notes: 'TBD: market intel' },
+      { name: 'Macro stable (no shock)', threshold: 1, current: null as number | null, unit: '', notes: 'TBD: factor/macro' },
+    ];
+
+    const gateResults = criteria.map((c) => {
+      const current = c.current;
+      let passed = false;
+      if (current != null) {
+        if (c.unit === '%') passed = current >= c.threshold;
+        else passed = current >= c.threshold;
+      }
+      return {
+        name: c.name,
+        threshold: c.threshold,
+        current: current ?? undefined,
+        passed,
+        notes: c.notes,
+      };
+    });
+
+    const passedCount = gateResults.filter(g => g.passed).length;
+    const verdict = passedCount >= 6 ? 'GO' : passedCount >= 4 ? 'OPTIMIZE' : 'DELAY';
+
+    return {
+      dealId: id,
+      phase2Gate: { criteria: gateResults, passedCount, totalCount: 8, verdict },
     };
   });
 

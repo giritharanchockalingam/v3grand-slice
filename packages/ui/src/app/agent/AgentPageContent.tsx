@@ -21,7 +21,7 @@ type WorkflowInputRecord = Record<string, string>;
 
 type WorkflowsResponse = { workflows: WorkflowMeta[] };
 
-type AgentChatResponse = { reply: string; toolCallsUsed?: number };
+type AgentChatResponse = { reply: string; tiles?: Array<{ type: 'section' | 'list'; title?: string; body?: string; items?: string[] }>; toolCallsUsed?: string[] | number };
 
 export function AgentPageContent() {
   const [selectedWorkflow, setSelectedWorkflow] = React.useState('deal_dashboard_stress');
@@ -76,7 +76,12 @@ export function AgentPageContent() {
       const res = await api.post<AgentChatResponse>('/agent/chat', { message });
       setChatMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: res.reply ?? '', toolCalls: res.toolCallsUsed },
+        {
+          role: 'assistant',
+          text: res.reply ?? '',
+          toolCalls: Array.isArray(res.toolCallsUsed) ? res.toolCallsUsed.length : (res.toolCallsUsed as number | undefined),
+          tiles: res.tiles && res.tiles.length > 0 ? res.tiles : undefined,
+        },
       ]);
     } catch (err) {
       setChatMessages((prev) => [
@@ -220,12 +225,13 @@ export function AgentPageContent() {
             showClearButton
             assistantName={AGENT_NAME}
             suggestedPrompts={[
-              'What is WACC?',
+              'Market intel factors and why they matter',
+              'WACC and hurdle rate',
               'List my deals',
-              'How is EBITDA calculated?',
-              'Run dashboard & stress test for the first deal',
+              'How EBITDA is used here',
+              'Dashboard and stress test for first deal',
             ]}
-            placeholder="Ask about deals, stress tests, validation..."
+            placeholder="Deals, metrics, or governance…"
           />
         </div>
       </div>
