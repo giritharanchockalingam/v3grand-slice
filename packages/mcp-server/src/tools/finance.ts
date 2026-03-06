@@ -136,8 +136,7 @@ export function registerFinanceTools(
         equityContribution: 8000000,
         waterfallValidation: {
           seniorDscr: 2.0,
-          mezzo
-DebtDscr: 1.5,
+          mezzoDebtDscr: 1.5,
           equityMultiple: 1.8,
         },
         sources: ['Debt waterfall structure', 'Priority of payments analysis', 'Loan covenants'],

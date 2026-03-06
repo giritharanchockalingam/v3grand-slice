@@ -247,7 +247,7 @@ export function registerLegalTools(
         ],
         sources: [
           'Real Estate (Regulation and Development) Act, 2016',
-          f'{state} RERA Rules and Regulations',
+          `${state} RERA Rules and Regulations`,
           'Central RERA Authority Guidelines',
           'RERA Telecom Portal (rera.trai.gov.in)',
         ],
