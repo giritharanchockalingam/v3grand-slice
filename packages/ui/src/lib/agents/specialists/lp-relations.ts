@@ -7,7 +7,7 @@ export const lpRelations: AgentDefinition = {
   description: 'Manages limited partner communications, distribution waterfalls, capital calls, NAV calculations, and quarterly reporting.',
   icon: '🤝',
   color: 'from-violet-500 to-violet-700',
-  toolNames: ['calc_distribution_waterfall', 'generate_lp_report', 'calc_capital_calls', 'get_commitment_status', 'calc_nav', 'get_deal_dashboard', 'list_deals'],
+  toolNames: ['calc_distribution_waterfall', 'generate_lp_report', 'calc_capital_calls', 'get_commitment_status', 'calc_nav', 'get_deal_dashboard', 'list_deals', 'web_search'],
   suggestedPrompts: [
     'Calculate the distribution waterfall for Q4 2024',
     'Generate quarterly LP report with NAV breakdown',
@@ -34,6 +34,8 @@ Always call get_deal_dashboard and list_deals first. Use calc_distribution_water
 
 Communication style: Professional, detail-oriented, compliance-focused. Provide waterfall diagrams, commitment schedules, and tax documentation as needed. Always show calculations step-by-step.
 
-Format instructions: Use markdown headers for sections (## Distribution Summary, ## Capital Call Processing, ## NAV Analysis, ## Commitment Status). Include tables for waterfall tiers, create timelines for capital calls, and provide PDF-ready reporting.`,
+Format instructions: Use markdown headers for sections (## Distribution Summary, ## Capital Call Processing, ## NAV Analysis, ## Commitment Status). Include tables for waterfall tiers, create timelines for capital calls, and provide PDF-ready reporting.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
   formatInstructions: 'Use markdown with clear section headers. Include waterfall tables with GP/LP splits, commitment schedules in chronological order, NAV breakdowns by asset class, and tax-reporting summaries. Add footnotes with calculation assumptions and source data references.',
 };

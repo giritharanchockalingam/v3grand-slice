@@ -35,6 +35,14 @@ interface InvestWizardInput {
   timelineYears: number;
 }
 
+/** Data provenance for an agent's analysis */
+interface DataProvenance {
+  externalApis: string[];       // e.g. ['RBI DBIE API', 'FRED', 'Brave Search']
+  internalTools: string[];      // e.g. ['get_deal_dashboard', 'run_montecarlo']
+  webSearches: number;          // count of web_search / search_hotel_market / search_regulatory calls
+  dataQuality: 'verified-external' | 'internal-calculation' | 'reference-benchmark' | 'ai-estimate';
+}
+
 /** Result from a single agent run */
 interface AgentResult {
   agentId: string;
@@ -44,6 +52,7 @@ interface AgentResult {
   toolCalls: AgentToolCall[];
   durationMs: number;
   error?: string;
+  provenance?: DataProvenance;
 }
 
 /** Final synthesized response */
@@ -214,6 +223,9 @@ async function runSingleAgent(
 
     const result = await Promise.race([agentPromise, timeoutPromise]);
 
+    // Compute data provenance from tool calls
+    const provenance = computeProvenance(result.toolCalls);
+
     return {
       agentId: agent.id,
       agentName: agent.title,
@@ -221,6 +233,7 @@ async function runSingleAgent(
       reply: result.reply,
       toolCalls: result.toolCalls,
       durationMs: Date.now() - startTime,
+      provenance,
     };
   } catch (err) {
     return {
@@ -233,6 +246,59 @@ async function runSingleAgent(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/** Compute data provenance from an agent's tool calls */
+function computeProvenance(toolCalls: AgentToolCall[]): DataProvenance {
+  const webSearchTools = ['web_search', 'search_hotel_market', 'search_regulatory'];
+  const externalApiTools = ['get_macro_indicators', 'get_city_profile', 'get_demand_signals', 'market_health'];
+  const internalTools = new Set<string>();
+  const externalApis = new Set<string>();
+  let webSearches = 0;
+
+  for (const tc of toolCalls) {
+    if (webSearchTools.includes(tc.name)) {
+      webSearches++;
+      // Check if the search returned results
+      if (tc.output && !tc.output.includes('"source":"unavailable"')) {
+        externalApis.add('Web Search');
+      }
+    } else if (externalApiTools.includes(tc.name)) {
+      // Check output for source info
+      if (tc.output) {
+        if (tc.output.includes('"source":"live"') || tc.output.includes('live-api')) {
+          externalApis.add('Live Market API');
+        }
+        if (tc.output.includes('RBI')) externalApis.add('RBI');
+        if (tc.output.includes('FRED')) externalApis.add('FRED');
+        if (tc.output.includes('World Bank')) externalApis.add('World Bank');
+        if (tc.output.includes('data.gov.in')) externalApis.add('data.gov.in');
+      }
+      internalTools.add(tc.name);
+    } else {
+      internalTools.add(tc.name);
+    }
+  }
+
+  // Determine overall data quality
+  let dataQuality: DataProvenance['dataQuality'];
+  if (externalApis.size > 0 || webSearches > 0) {
+    dataQuality = 'verified-external';
+  } else if (internalTools.size > 0) {
+    // Check if tools are computation engines vs reference data
+    const computeTools = ['run_montecarlo', 'run_factor', 'run_sensitivity', 'run_stress_test', 'run_budget'];
+    const hasCompute = [...internalTools].some(t => computeTools.includes(t));
+    dataQuality = hasCompute ? 'internal-calculation' : 'reference-benchmark';
+  } else {
+    dataQuality = 'ai-estimate';
+  }
+
+  return {
+    externalApis: [...externalApis],
+    internalTools: [...internalTools],
+    webSearches,
+    dataQuality,
+  };
 }
 
 /** Use Claude to synthesize all agent results into a final verdict */

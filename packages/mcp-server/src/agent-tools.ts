@@ -18,6 +18,12 @@ import { registerDealTools } from './tools/deals.js';
 import { registerEngineTools } from './tools/engines.js';
 import { registerValidationTools } from './tools/validation.js';
 import { registerRiskTools } from './tools/risks.js';
+import { registerLegalTools } from './tools/legal.js';
+import { registerTaxTools } from './tools/tax.js';
+import { registerRevenueTools } from './tools/revenue.js';
+import { registerEsgTools } from './tools/esg.js';
+import { registerFinanceTools } from './tools/finance.js';
+import { registerWebSearchTools } from './tools/web-search.js';
 
 export type MarketDataService = Awaited<ReturnType<typeof createMarketDataService>>;
 
@@ -70,6 +76,12 @@ function createRunner(db: PostgresJsDatabase, marketService: MarketDataService):
   registerEngineTools(server, db);
   registerValidationTools(server, db);
   registerRiskTools(server, db);
+  registerLegalTools(server, { db });
+  registerTaxTools(server, { db });
+  registerRevenueTools(server, { db });
+  registerEsgTools(server, { db });
+  registerFinanceTools(server, { db });
+  registerWebSearchTools(server);
 
   return {
     listToolsForLLM(): OpenAITool[] {

@@ -22,6 +22,8 @@ export const marketAnalyst: AgentDefinition = {
     'list_deals',
     'get_news_sentiment',
     'get_competitive_landscape',
+    'web_search',
+    'search_hotel_market',
   ],
   suggestedPrompts: [
     'What\'s the macro outlook? Any headwinds for real estate?',
@@ -59,7 +61,9 @@ When analyzing markets:
 8. Call get_competitive_landscape for competitive positioning
 
 Format your response with clear sections using markdown headers.
-Always end with "Investment Implications" — what this means for the portfolio.`,
+Always end with "Investment Implications" — what this means for the portfolio.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Market Intelligence Brief

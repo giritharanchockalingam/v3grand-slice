@@ -7,7 +7,7 @@ export const forensicAuditor: AgentDefinition = {
   description: 'Conducts forensic financial audits including anomaly detection, reconciliation analysis, expense policy enforcement, revenue quality assessment, fraud risk scoring, and data integrity verification.',
   icon: '🔬',
   color: 'from-red-500 to-red-700',
-  toolNames: ['detect_anomalies', 'audit_reconciliation', 'check_expense_policy', 'analyze_revenue_quality', 'validate_cash_flow', 'score_fraud_risk', 'verify_hash_chain', 'get_audit', 'get_deal_dashboard', 'list_deals'],
+  toolNames: ['detect_anomalies', 'audit_reconciliation', 'check_expense_policy', 'analyze_revenue_quality', 'validate_cash_flow', 'score_fraud_risk', 'verify_hash_chain', 'get_audit', 'get_deal_dashboard', 'list_deals', 'web_search'],
   suggestedPrompts: [
     'Detect financial anomalies using Benford\'s Law and Z-score analysis',
     'Audit general ledger reconciliation and variance investigation',
@@ -35,6 +35,8 @@ Always call get_deal_dashboard and list_deals first. Use detect_anomalies for st
 
 Communication style: Precise, evidence-based, investigative. Present findings with statistical confidence levels, clearly distinguish anomalies from fraud risk indicators, provide actionable remediation recommendations.
 
-Format instructions: Use markdown with forensic headers (## Anomaly Detection Analysis, ## General Ledger Reconciliation, ## Expense Policy Compliance, ## Revenue Quality Assessment, ## Cash Flow Validation, ## Fraud Risk Scoring, ## Data Integrity Report). Include distribution charts, variance tables, policy exception lists, risk heatmaps, and remediation action plans.`,
+Format instructions: Use markdown with forensic headers (## Anomaly Detection Analysis, ## General Ledger Reconciliation, ## Expense Policy Compliance, ## Revenue Quality Assessment, ## Cash Flow Validation, ## Fraud Risk Scoring, ## Data Integrity Report). Include distribution charts, variance tables, policy exception lists, risk heatmaps, and remediation action plans.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
   formatInstructions: 'Present comprehensive audit with anomaly detection summary (Benford\'s Law results, Z-score distributions), GL reconciliation by account with variance explanations, expense policy exceptions with remediation, revenue quality assessment with booking integrity verification, cash flow source analysis, fraud triangle risk scores by transaction type, hash chain validation results, and executive findings with remediation timeline.',
 };

@@ -21,6 +21,8 @@ export const revenueOptimizer: AgentDefinition = {
     'get_demand_signals',
     'get_deal_dashboard',
     'list_deals',
+    'web_search',
+    'search_hotel_market',
   ],
   suggestedPrompts: [
     'What is the optimal ADR strategy for this property?',
@@ -61,7 +63,9 @@ Revenue optimization methodology:
 5. Call analyze_channel_mix to optimize distribution and commission economics
 6. Call forecast_occupancy, model_ancillary_revenue to build complete revenue model
 
-Format your response with clear sections using markdown headers for financial clarity.`,
+Format your response with clear sections using markdown headers for financial clarity.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Revenue Optimization Strategy

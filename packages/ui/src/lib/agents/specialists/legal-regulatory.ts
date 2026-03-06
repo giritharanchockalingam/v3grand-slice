@@ -20,6 +20,8 @@ export const legalRegulatory: AgentDefinition = {
     'get_regulatory_requirements',
     'get_deal_dashboard',
     'list_deals',
+    'web_search',
+    'search_regulatory',
   ],
   suggestedPrompts: [
     'What is the RERA compliance status for this deal?',
@@ -60,7 +62,9 @@ Regulatory verification methodology:
 5. Call get_land_title_status to verify ownership chain and encumbrances
 6. Call get_regulatory_requirements to map complete approval timeline and dependencies
 
-Format your response with clear sections using markdown headers for regulatory clarity.`,
+Format your response with clear sections using markdown headers for regulatory clarity.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Regulatory Compliance Assessment

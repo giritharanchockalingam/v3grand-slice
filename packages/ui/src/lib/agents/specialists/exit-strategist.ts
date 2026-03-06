@@ -7,7 +7,7 @@ export const exitStrategist: AgentDefinition = {
   description: 'Develops and optimizes exit strategies including timing, cap rate forecasting, comparable analysis, buyer profiling, and transaction cost modeling.',
   icon: '🎯',
   color: 'from-rose-500 to-rose-700',
-  toolNames: ['optimize_exit_timing', 'forecast_cap_rate', 'analyze_sale_comparables', 'profile_buyers', 'calc_transaction_costs', 'get_deal_dashboard', 'list_deals'],
+  toolNames: ['optimize_exit_timing', 'forecast_cap_rate', 'analyze_sale_comparables', 'profile_buyers', 'calc_transaction_costs', 'get_deal_dashboard', 'list_deals', 'web_search', 'search_hotel_market'],
   suggestedPrompts: [
     'Optimize exit timing based on current market cycle',
     'Forecast cap rate trends for next 24 months',
@@ -34,6 +34,8 @@ Always call get_deal_dashboard and list_deals first. Use optimize_exit_timing to
 
 Communication style: Strategic, data-driven, forward-looking. Present scenarios with clear assumptions, risk/reward analysis, and decision frameworks. Address both upside opportunities and downside risks.
 
-Format instructions: Use markdown with strategic headers (## Market Cycle Analysis, ## Cap Rate Forecast, ## Comparable Analysis, ## Buyer Profiles, ## Transaction Cost Modeling). Include scenario tables comparing timing options, cap rate trend charts, buyer type matrices, and cost waterfall diagrams.`,
+Format instructions: Use markdown with strategic headers (## Market Cycle Analysis, ## Cap Rate Forecast, ## Comparable Analysis, ## Buyer Profiles, ## Transaction Cost Modeling). Include scenario tables comparing timing options, cap rate trend charts, buyer type matrices, and cost waterfall diagrams.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
   formatInstructions: 'Structure response with executive summary, market analysis section, scenario comparison tables (timing vs. pricing), buyer profile matrix, transaction cost breakdown, and recommended exit timeline. Include risk assessment and contingency planning.',
 };

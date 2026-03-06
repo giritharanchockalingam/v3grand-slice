@@ -26,6 +26,8 @@ export const dealUnderwriter: AgentDefinition = {
     'get_wacc_hurdle_explainer',
     'run_comparable_analysis',
     'run_sensitivity_deep_dive',
+    'web_search',
+    'search_hotel_market',
   ],
   suggestedPrompts: [
     'Give me a full IC-ready analysis of V3 Grand Madurai',
@@ -64,7 +66,9 @@ When analyzing a deal:
 IMPORTANT: Never ask the user for a deal ID. Always use list_deals first to find deals by name, then use the ID from that result.
 
 Format your response with clear sections using markdown headers.
-Always end with a clear INVEST / HOLD / PASS recommendation with supporting rationale.`,
+Always end with a clear INVEST / HOLD / PASS recommendation with supporting rationale.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Deal Analysis: [Deal Name]

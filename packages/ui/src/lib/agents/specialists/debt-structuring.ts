@@ -20,6 +20,7 @@ export const debtStructuring: AgentDefinition = {
     'calc_interest_swap',
     'get_deal_dashboard',
     'list_deals',
+    'web_search',
   ],
   suggestedPrompts: [
     'What is the optimal LTV for this deal given market conditions?',
@@ -60,7 +61,9 @@ Debt structuring methodology:
 5. Call calc_interest_swap to evaluate hedging cost-benefit and optimal strategy
 6. Call calc_refinance_scenarios to identify 3-5 year refinancing opportunities
 
-Format your response with clear sections using markdown headers for financial clarity.`,
+Format your response with clear sections using markdown headers for financial clarity.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Debt Structuring Strategy

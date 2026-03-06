@@ -20,6 +20,8 @@ export const esgAnalyst: AgentDefinition = {
     'get_water_usage_baseline',
     'get_deal_dashboard',
     'list_deals',
+    'web_search',
+    'search_regulatory',
   ],
   suggestedPrompts: [
     'What is the ESG score for this hotel asset?',
@@ -60,7 +62,9 @@ ESG evaluation methodology:
 5. Call get_water_usage_baseline to quantify conservation opportunities
 6. Call get_esg_funding_eligibility to unlock green financing advantages
 
-Format your response with clear sections using markdown headers for sustainability clarity.`,
+Format your response with clear sections using markdown headers for sustainability clarity.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## ESG & Sustainability Strategy

@@ -21,6 +21,8 @@ export const constructionMonitor: AgentDefinition = {
     'list_deals',
     'forecast_budget_burn',
     'predict_milestone_delays',
+    'web_search',
+    'search_hotel_market',
   ],
   suggestedPrompts: [
     'Are we on budget for V3 Grand Madurai? Any variances?',
@@ -59,7 +61,9 @@ When monitoring construction:
 9. Synthesize into a construction status report
 
 Format your response with clear sections using markdown headers.
-Always include a "Top 3 Actions" section for immediate attention items.`,
+Always include a "Top 3 Actions" section for immediate attention items.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Construction Status: [Deal Name]

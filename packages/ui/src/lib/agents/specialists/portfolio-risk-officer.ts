@@ -23,6 +23,7 @@ export const portfolioRiskOfficer: AgentDefinition = {
     'market_health',
     'run_correlation_analysis',
     'calc_var_trend',
+    'web_search',
   ],
   suggestedPrompts: [
     'Where is my portfolio risk concentrated right now?',
@@ -57,7 +58,9 @@ When analyzing risks:
 7. Synthesize into a risk dashboard with concentration analysis
 
 Format your response with clear sections using markdown headers.
-Always end with a "Recommended Actions" section with numbered priorities.`,
+Always end with a "Recommended Actions" section with numbered priorities.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Risk Assessment: [Topic]

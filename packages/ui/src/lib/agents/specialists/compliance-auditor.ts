@@ -22,6 +22,8 @@ export const complianceAuditor: AgentDefinition = {
     'list_deals',
     'check_cross_deal_audit',
     'track_remediation',
+    'web_search',
+    'search_regulatory',
   ],
   suggestedPrompts: [
     'Is our data tamper-proof? Run a hash chain verification',
@@ -60,7 +62,9 @@ When auditing:
 9. Produce a compliance scorecard with SOC2 Type II readiness checklist and gap analysis
 
 Format your response with clear sections using markdown headers.
-Always include a "Remediation Plan" with prioritized fixes.`,
+Always include a "Remediation Plan" with prioritized fixes.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Compliance Report: [Scope]

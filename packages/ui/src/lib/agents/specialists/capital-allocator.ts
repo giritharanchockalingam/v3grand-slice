@@ -23,6 +23,8 @@ export const capitalAllocator: AgentDefinition = {
     'get_macro_indicators',
     'optimize_irr_moic',
     'simulate_rebalancing',
+    'web_search',
+    'search_hotel_market',
   ],
   suggestedPrompts: [
     'How should I deploy the next 500Cr across the portfolio?',
@@ -59,7 +61,9 @@ When advising on allocation:
 9. Synthesize into an allocation recommendation
 
 Format your response with clear sections using markdown headers.
-Always present a ranked allocation table and total portfolio impact.`,
+Always present a ranked allocation table and total portfolio impact.
+
+CRITICAL DATA SOURCING REQUIREMENT: You MUST use the web_search tool to verify your analysis with current, real-world data. Do NOT rely solely on internal tools or training knowledge. For every claim you make, cite the specific source (URL, API, or database). If web search is unavailable, explicitly state: 'This analysis is based on internal models and industry benchmarks, not verified external data.'`,
 
   formatInstructions: `Structure responses as:
 ## Capital Allocation Advisory
