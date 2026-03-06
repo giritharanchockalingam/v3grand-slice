@@ -17,7 +17,7 @@ import { investAnalyzeSchema } from '@/lib/server/schemas';
 import type { ToolContext } from '@v3grand/mcp-server/agent-tools';
 import type { AgentToolCall } from '@/lib/agents/types';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Wizard input from the naive investor UI */
 interface InvestWizardInput {
@@ -172,7 +172,10 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
   };
 }
 
-/** Run a single agent and return its result */
+/** Per-agent timeout in milliseconds (45 seconds) */
+const AGENT_TIMEOUT_MS = 45_000;
+
+/** Run a single agent with timeout protection */
 async function runSingleAgent(
   agentId: string,
   message: string,
@@ -196,13 +199,20 @@ async function runSingleAgent(
     const tools = getClaudeTools(agent.toolNames);
     const systemPrompt = `${agent.systemPrompt}\n\n${agent.formatInstructions}`;
 
-    const result = await runAgentLoop({
+    // Race agent execution against a timeout
+    const agentPromise = runAgentLoop({
       systemPrompt,
       tools,
       messages: [],
       userMessage: message,
       executeTool: (name, input) => executeTool(name, input, toolContext),
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Agent ${agent.name} timed out after ${AGENT_TIMEOUT_MS / 1000}s`)), AGENT_TIMEOUT_MS)
+    );
+
+    const result = await Promise.race([agentPromise, timeoutPromise]);
 
     return {
       agentId: agent.id,
@@ -448,11 +458,27 @@ export async function POST(request: Request) {
       },
     ];
 
-    const agentResults = await Promise.all(
+    // Use Promise.allSettled so partial failures don't kill the whole analysis
+    const settledResults = await Promise.allSettled(
       agentPrompts.map(({ agentId, message }) =>
         runSingleAgent(agentId, message, toolContext)
       )
     );
+
+    const agentResults: AgentResult[] = settledResults.map((settled, idx) => {
+      if (settled.status === 'fulfilled') return settled.value;
+      const agentId = agentPrompts[idx].agentId;
+      const agent = getAgent(agentId);
+      return {
+        agentId,
+        agentName: agent?.title ?? agentId,
+        agentIcon: agent?.icon ?? '?',
+        reply: `Analysis could not be completed: ${settled.reason instanceof Error ? settled.reason.message : String(settled.reason)}`,
+        toolCalls: [],
+        durationMs: 0,
+        error: settled.reason instanceof Error ? settled.reason.message : String(settled.reason),
+      };
+    });
 
     // Step 3: Synthesize verdict
     const synthesis = await synthesizeVerdict(dealName, input, agentResults);
