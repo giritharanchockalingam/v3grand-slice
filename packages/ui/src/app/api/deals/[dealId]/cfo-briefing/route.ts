@@ -15,7 +15,7 @@ import { withRLS } from '@/lib/server/db';
 import { getAuthUser } from '@/lib/server/auth';
 import {
   getDealById, getLatestEngineResult, getLatestEngineResultByScenario,
-  getLatestRecommendation,
+  getLatestRecommendation, getLatestInvestAnalysis,
 } from '@v3grand/db';
 
 export const maxDuration = 60;
@@ -31,32 +31,47 @@ export async function POST(
 
     // Accept optional agent results from the client (from invest wizard sessionStorage)
     const body = await request.json().catch(() => ({}));
-    const agentResults: Array<{ agentName: string; reply: string; error?: string }> = body.agentResults ?? [];
-    const investVerdict = body.investVerdict ?? null;
-    const investSummary = body.investSummary ?? null;
-    const investKeyMetrics = body.investKeyMetrics ?? null;
-    const investWarnings: string[] = body.investWarnings ?? [];
+    let agentResults: Array<{ agentName: string; reply: string; error?: string }> = body.agentResults ?? [];
+    let investVerdict = body.investVerdict ?? null;
+    let investSummary = body.investSummary ?? null;
+    let investKeyMetrics = body.investKeyMetrics ?? null;
+    let investWarnings: string[] = body.investWarnings ?? [];
 
     // Fetch all deal data with RLS
     const data = await withRLS(user.userId, user.role, async (db) => {
       const dealRow = await getDealById(db, dealId);
       if (!dealRow) return null;
 
-      const [latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult] = await Promise.all([
+      const [latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult, latestInvest] = await Promise.all([
         getLatestEngineResultByScenario(db, dealId, 'underwriter', 'base'),
         getLatestRecommendation(db, dealId),
         getLatestEngineResult(db, dealId, 'montecarlo'),
         getLatestEngineResult(db, dealId, 'factor'),
         getLatestEngineResult(db, dealId, 'budget'),
         getLatestEngineResult(db, dealId, 'decision'),
+        getLatestInvestAnalysis(db, dealId),
       ]);
 
-      return { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult };
+      return { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult, latestInvest };
     });
 
     if (!data) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
 
-    const { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult } = data;
+    const { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult, latestInvest } = data;
+
+    // If client didn't pass agent results, load from persisted invest analysis
+    if (!agentResults.length && latestInvest) {
+      const savedAgents = (latestInvest.agentResults as Array<any>) ?? [];
+      agentResults = savedAgents.map((r: any) => ({
+        agentName: r.agentName ?? r.agentId ?? 'Unknown',
+        reply: r.reply ?? '',
+        error: r.error,
+      }));
+      investVerdict = investVerdict ?? latestInvest.verdict;
+      investSummary = investSummary ?? latestInvest.summary;
+      investKeyMetrics = investKeyMetrics ?? latestInvest.keyMetrics;
+      investWarnings = investWarnings.length ? investWarnings : ((latestInvest.warnings as string[]) ?? []);
+    }
 
     // Build comprehensive context for Claude
     const dealContext = buildDealContext(dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestDecisionResult);

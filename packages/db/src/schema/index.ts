@@ -326,3 +326,19 @@ export const assumptions = pgTable('assumptions', {
   dealStatusIdx: index('assump_deal_status').on(t.dealId, t.status),
   uniqueDealKey: uniqueIndex('assump_deal_key').on(t.dealId, t.assumptionKey),
 }));
+
+// ── Invest Analyses (persisted invest wizard results for CFO briefing) ──
+export const investAnalyses = pgTable('invest_analyses', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  dealId:        uuid('deal_id').notNull().references(() => deals.id),
+  verdict:       varchar('verdict', { length: 10 }).notNull(),    // YES / NO / MAYBE
+  confidence:    integer('confidence').notNull().default(0),
+  summary:       varchar('summary', { length: 5000 }),
+  keyMetrics:    jsonb('key_metrics'),
+  warnings:      jsonb('warnings').default([]),
+  agentResults:  jsonb('agent_results').default([]),
+  createdAt:     timestamp('created_at').notNull().defaultNow(),
+  updatedAt:     timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  dealIdx: index('invest_analyses_deal_idx').on(t.dealId, t.createdAt),
+}));

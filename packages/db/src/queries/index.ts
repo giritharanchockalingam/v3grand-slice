@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory, assumptions } from '../schema/index';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory, assumptions, investAnalyses } from '../schema/index';
 
 type DB = PostgresJsDatabase;
 
@@ -819,5 +819,35 @@ export async function updateAssumptionStatus(db: DB, dealId: string, assumptionK
   if (status === 'reviewed') set.lastReviewedAt = now;
   if (status === 'approved' || status === 'locked') { set.approvedBy = approvedBy ?? null; set.approvedAt = now; }
   const [row] = await db.update(assumptions).set(set).where(and(eq(assumptions.dealId, dealId), eq(assumptions.assumptionKey, assumptionKey))).returning();
+  return row ?? null;
+}
+
+// ── Invest Analyses ──
+export async function saveInvestAnalysis(db: DB, payload: {
+  dealId: string;
+  verdict: string;
+  confidence: number;
+  summary?: string;
+  keyMetrics?: unknown;
+  warnings?: unknown;
+  agentResults?: unknown;
+}) {
+  const [row] = await db.insert(investAnalyses).values({
+    dealId: payload.dealId,
+    verdict: payload.verdict,
+    confidence: payload.confidence,
+    summary: payload.summary ?? null,
+    keyMetrics: payload.keyMetrics ?? null,
+    warnings: payload.warnings ?? [],
+    agentResults: payload.agentResults ?? [],
+  }).returning();
+  return row!;
+}
+
+export async function getLatestInvestAnalysis(db: DB, dealId: string) {
+  const [row] = await db.select().from(investAnalyses)
+    .where(eq(investAnalyses.dealId, dealId))
+    .orderBy(desc(investAnalyses.createdAt))
+    .limit(1);
   return row ?? null;
 }

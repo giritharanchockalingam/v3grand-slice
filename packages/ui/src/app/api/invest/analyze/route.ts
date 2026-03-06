@@ -720,6 +720,30 @@ export async function POST(request: Request) {
       warnings: synthesis.warnings,
     };
 
+    // Persist invest analysis to DB so CFO briefing can always access it
+    try {
+      const { saveInvestAnalysis } = await import('@v3grand/db');
+      await saveInvestAnalysis(db, {
+        dealId: deal.id,
+        verdict: synthesis.verdict,
+        confidence: synthesis.confidence,
+        summary: synthesis.summary,
+        keyMetrics: synthesis.keyMetrics,
+        warnings: synthesis.warnings,
+        agentResults: agentResults.map(r => ({
+          agentId: r.agentId,
+          agentName: r.agentName,
+          agentIcon: r.agentIcon,
+          reply: r.reply,
+          durationMs: r.durationMs,
+          error: r.error,
+          provenance: r.provenance,
+        })),
+      });
+    } catch (persistErr) {
+      console.error('Failed to persist invest analysis (non-fatal):', persistErr);
+    }
+
     return NextResponse.json(response);
   } catch (err) {
     console.error('POST /api/invest/analyze failed:', err);
