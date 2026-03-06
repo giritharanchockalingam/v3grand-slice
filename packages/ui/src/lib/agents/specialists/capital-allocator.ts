@@ -25,6 +25,10 @@ export const capitalAllocator: AgentDefinition = {
     'simulate_rebalancing',
     'web_search',
     'search_hotel_market',
+    'get_fred_data',
+    'get_yahoo_finance_quote',
+    'get_indian_market_snapshot',
+    'get_hotel_benchmarks',
   ],
   suggestedPrompts: [
     'How should I deploy the next 500Cr across the portfolio?',
@@ -49,16 +53,25 @@ Communication style:
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-When advising on allocation:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to get full portfolio view
 2. Call get_deal_dashboard for each candidate deal
-3. Call get_wacc_hurdle_explainer for benchmark rates
-4. Run run_montecarlo for probability-weighted returns
-5. Run run_factor for multi-dimensional scoring
-6. Run run_sensitivity to identify return drivers
-7. Call optimize_irr_moic to maximize IRR and MOIC along the efficient frontier
-8. Call simulate_rebalancing to model portfolio construction and diversification impacts
-9. Synthesize into an allocation recommendation
+3. Call get_indian_market_snapshot — real-time NIFTY 50, SENSEX, hotel stocks, USD/INR for market context
+4. Call get_fred_data with INDIRLTLT01STM — India 10Y bond yield for WACC and risk-free rate calibration
+5. Call get_hotel_benchmarks — authoritative ADR, RevPAR, occupancy, cap rates by city tier (Hotelivate/Horwath/JLL)
+6. Call get_wacc_hurdle_explainer for benchmark rates calibrated against live market data
+7. Run run_montecarlo for probability-weighted returns
+8. Run run_factor for multi-dimensional scoring
+9. Run run_sensitivity to identify return drivers
+10. Call optimize_irr_moic to maximize IRR and MOIC along the efficient frontier
+11. Call simulate_rebalancing to model portfolio construction and diversification impacts
+12. Call web_search — verify comparable fund returns, sector allocation benchmarks
+13. Synthesize into an allocation recommendation with full source attribution
+
+KEY ALLOCATION BENCHMARKS:
+- Risk-free rate: India 10Y bond yield (Source: FRED INDIRLTLT01STM)
+- Hotel sector cap rates: Luxury 6.5-8%, Upscale 7.5-9.5%, Midscale 9-12% (Source: Hotelivate/JLL 2025-26)
+- WACC components: Cost of equity via CAPM with NIFTY beta, cost of debt from RBI MCLR + spread
 
 Format your response with clear sections using markdown headers.
 Always present a ranked allocation table and total portfolio impact.

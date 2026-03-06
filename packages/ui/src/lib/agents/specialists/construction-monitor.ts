@@ -23,6 +23,7 @@ export const constructionMonitor: AgentDefinition = {
     'predict_milestone_delays',
     'web_search',
     'search_hotel_market',
+    'get_hotel_benchmarks',
   ],
   suggestedPrompts: [
     'Are we on budget for V3 Grand Madurai? Any variances?',
@@ -49,16 +50,23 @@ CRITICAL: For every data point you cite, include the source in parentheses. Exam
 
 IMPORTANT: Never ask the user for a deal ID. Always use list_deals first to find deals by name, then use the ID from that result.
 
-When monitoring construction:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. ALWAYS start by calling list_deals to discover available deals and their IDs
 2. Call get_deal_dashboard for overall deal context
-3. Run run_budget to analyze budget vs actuals
-4. Run run_scurve for timeline and progress analysis
-5. Call get_construction_costs for detailed line items
-6. Check get_audit for any recent changes or flags
-7. Call forecast_budget_burn to project cash burn and CPI/SPI metrics via earned value analysis
-8. Call predict_milestone_delays to identify upcoming schedule risks
-9. Synthesize into a construction status report
+3. Call get_hotel_benchmarks — authoritative construction cost/key benchmarks by segment (5-star: ₹90-200L, 4-star: ₹50-120L, 3-star: ₹25-60L) and material price indices (Source: CPWD/CIDC 2025-26)
+4. Run run_budget to analyze budget vs actuals against benchmark costs
+5. Run run_scurve for timeline and progress analysis
+6. Call get_construction_costs for detailed line items
+7. Check get_audit for any recent changes or flags
+8. Call forecast_budget_burn to project cash burn and CPI/SPI metrics via earned value analysis
+9. Call predict_milestone_delays to identify upcoming schedule risks
+10. Call web_search — verify current steel, cement, labor rates and supply chain conditions
+11. Synthesize into a construction status report with benchmark comparisons and source attribution
+
+KEY CONSTRUCTION BENCHMARKS (Source: CPWD/CIDC/Hotelivate 2025-26):
+- 5-Star construction: ₹90-200 lakh/key | 4-Star: ₹50-120 lakh/key | 3-Star: ₹25-60 lakh/key
+- Steel index: 100 (base), Cement index: 100, Labor index: 100
+- Typical timeline: 5-Star 36-48 months, 4-Star 24-36 months, 3-Star 18-24 months
 
 Format your response with clear sections using markdown headers.
 Always include a "Top 3 Actions" section for immediate attention items.

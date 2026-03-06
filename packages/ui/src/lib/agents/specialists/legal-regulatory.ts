@@ -22,6 +22,7 @@ export const legalRegulatory: AgentDefinition = {
     'list_deals',
     'web_search',
     'search_regulatory',
+    'get_india_tax_reference',
   ],
   suggestedPrompts: [
     'What is the RERA compliance status for this deal?',
@@ -54,13 +55,23 @@ IMPORTANT: When a user mentions a deal or asks about a specific location, always
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-Regulatory verification methodology:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to identify the specific deal and its location
-2. Call check_rera_compliance to verify project registration and compliance status
-3. Call check_zoning to assess land-use legality and municipal approvals
-4. Call get_environmental_clearances for EIA/CRZ/environmental assessment status
-5. Call get_land_title_status to verify ownership chain and encumbrances
-6. Call get_regulatory_requirements to map complete approval timeline and dependencies
+2. Call get_india_tax_reference — stamp duty rates and registration charges by state (Source: State Revenue Departments 2025-26)
+3. Call check_rera_compliance to verify project registration and compliance status
+4. Call check_zoning to assess land-use legality and municipal approvals
+5. Call get_environmental_clearances for EIA/CRZ/environmental assessment status
+6. Call get_land_title_status to verify ownership chain and encumbrances
+7. Call get_regulatory_requirements to map complete approval timeline and dependencies
+8. Call search_regulatory — latest RERA amendments, MoEFCC notifications, state-specific regulatory updates
+9. Call web_search — verify current RERA registration portals, CRZ zone classifications, latest environmental tribunal orders
+10. Synthesize with full regulatory citation: Act name, section number, notification date
+
+KEY REGULATORY REFERENCES:
+- RERA: Real Estate (Regulation and Development) Act, 2016 — state-specific rules
+- CRZ: Coastal Regulation Zone Notification, 2019 (MoEFCC)
+- EIA: Environment Impact Assessment Notification, 2006 (as amended 2020)
+- Stamp Duty: State-specific rates (Source: get_india_tax_reference with 15 states)
 
 Format your response with clear sections using markdown headers for regulatory clarity.
 

@@ -24,6 +24,10 @@ export const marketAnalyst: AgentDefinition = {
     'get_competitive_landscape',
     'web_search',
     'search_hotel_market',
+    'get_fred_data',
+    'get_yahoo_finance_quote',
+    'get_indian_market_snapshot',
+    'get_hotel_benchmarks',
   ],
   suggestedPrompts: [
     'What\'s the macro outlook? Any headwinds for real estate?',
@@ -50,15 +54,20 @@ CRITICAL: For every data point you cite, include the source in parentheses. Exam
 
 IMPORTANT: When a user mentions a deal or asks about a specific location, always use list_deals first to discover available deals and their IDs. Never ask the user for a deal ID.
 
-When analyzing markets:
-1. Call get_macro_indicators for national/global context
-2. Call get_city_profile for location-specific data
-3. Call get_demand_signals for supply-demand dynamics
-4. Call market_health for overall market scoring
-5. Call get_market_intel_factors for weighted factor analysis
-6. Synthesize into a market intelligence brief
-7. Call get_news_sentiment for latest market sentiment
-8. Call get_competitive_landscape for competitive positioning
+ENTERPRISE DATA SOURCING PROTOCOL (follow this exact sequence):
+1. Call get_macro_indicators — RBI repo rate, CPI, GDP, bond yields (live API data)
+2. Call get_indian_market_snapshot — real-time NIFTY 50, SENSEX, hotel stocks (IHCL, Lemon Tree, Chalet), USD/INR from Yahoo Finance + FRED
+3. Call get_city_profile — city-level demand signals, airport traffic, tourism data
+4. Call get_hotel_benchmarks — authoritative ADR, RevPAR, occupancy, cap rates, construction costs (Hotelivate/Horwath/JLL 2025-26)
+5. Call web_search — verify and supplement with latest news, Hotelivate updates, CBRE/JLL/Knight Frank reports
+6. Call search_hotel_market — city-specific hotel performance metrics
+7. Call get_fred_data with INDIRLTLT01STM — India 10Y bond yield trend (5 observations)
+8. Synthesize into a CFO-grade market intelligence brief
+
+SOURCE ATTRIBUTION: Every data point MUST include (Source: [name], [date]). Example:
+- "NIFTY 50 at 24,850 (+0.3%) (Source: Yahoo Finance, live)"
+- "India 10Y yield at 6.72% (Source: FRED INDIRLTLT01STM, Mar 2026)"
+- "Goa hotel ADR ₹10,950/night (Source: Hotelivate India Hotel Market Review 2025)"
 
 Format your response with clear sections using markdown headers.
 Always end with "Investment Implications" — what this means for the portfolio.

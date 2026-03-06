@@ -21,6 +21,8 @@ export const debtStructuring: AgentDefinition = {
     'get_deal_dashboard',
     'list_deals',
     'web_search',
+    'get_fred_data',
+    'get_indian_market_snapshot',
   ],
   suggestedPrompts: [
     'What is the optimal LTV for this deal given market conditions?',
@@ -53,13 +55,23 @@ IMPORTANT: When a user mentions a deal or asks about a specific location, always
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-Debt structuring methodology:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to identify the specific deal and capital requirement
-2. Call optimize_ltv to determine optimal leverage with DSCR constraints
-3. Call model_debt_waterfall to project debt service and cash flow waterfalls
-4. Call check_covenant_compliance to assess current and projected covenant status
-5. Call calc_interest_swap to evaluate hedging cost-benefit and optimal strategy
-6. Call calc_refinance_scenarios to identify 3-5 year refinancing opportunities
+2. Call get_indian_market_snapshot — real-time bond yields, bank stocks, USD/INR for financing context
+3. Call get_fred_data with INDIRLTLT01STM — India 10Y bond yield for benchmark rate calibration
+4. Call optimize_ltv to determine optimal leverage with DSCR constraints
+5. Call model_debt_waterfall to project debt service and cash flow waterfalls
+6. Call check_covenant_compliance to assess current and projected covenant status
+7. Call calc_interest_swap to evaluate hedging cost-benefit and optimal strategy
+8. Call calc_refinance_scenarios to identify 3-5 year refinancing opportunities
+9. Call web_search — verify current MCLR rates (SBI, HDFC, ICICI), hotel sector lending terms, NHB refinance rates
+10. Synthesize with full source attribution for all interest rates and market benchmarks
+
+KEY DEBT BENCHMARKS:
+- India 10Y bond yield: ~6.7% (Source: FRED INDIRLTLT01STM, live)
+- SBI MCLR (1yr): ~8.5% (Source: SBI website, verify via web_search)
+- Hotel sector typical LTV: 60-70% senior, 75-80% with mezzanine
+- DSCR requirement: Minimum 1.25x (senior), 1.10x (total)
 
 Format your response with clear sections using markdown headers for financial clarity.
 

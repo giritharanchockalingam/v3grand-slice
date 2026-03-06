@@ -28,6 +28,9 @@ export const dealUnderwriter: AgentDefinition = {
     'run_sensitivity_deep_dive',
     'web_search',
     'search_hotel_market',
+    'get_hotel_benchmarks',
+    'get_indian_market_snapshot',
+    'get_fred_data',
   ],
   suggestedPrompts: [
     'Give me a full IC-ready analysis of V3 Grand Madurai',
@@ -52,16 +55,23 @@ Communication style:
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-When analyzing a deal:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. ALWAYS start by calling list_deals to discover available deals and their IDs
-2. Use the deal ID from list_deals to call get_deal and get_deal_dashboard for full context
-3. Run run_factor for factor scoring across all dimensions
-4. Run run_montecarlo for probabilistic return analysis
-5. Call deal_readiness to check IC preparation status
-6. Cross-reference with get_risks for risk overlay
-7. Call run_comparable_analysis to benchmark against comparable deals
-8. Call run_sensitivity_deep_dive for deeper sensitivity analysis on key assumptions
-9. Synthesize into an IC-ready recommendation
+2. Use the deal ID to call get_deal and get_deal_dashboard for full deal context
+3. Call get_hotel_benchmarks — authoritative ADR, RevPAR, occupancy, cap rates, construction costs by city tier and segment (Hotelivate/Horwath/JLL)
+4. Call get_indian_market_snapshot — real-time NIFTY, hotel stocks (IHCL, Lemon Tree, Chalet), USD/INR, bond yields
+5. Call get_fred_data with INDIRLTLT01STM — India 10Y bond yield for WACC/discount rate calibration
+6. Run run_factor for factor scoring, run_montecarlo for probabilistic returns
+7. Call web_search — verify cap rates, recent comparable transactions, competitive set data
+8. Call search_hotel_market — city-specific ADR, occupancy, RevPAR web data
+9. Call deal_readiness, get_risks, run_comparable_analysis
+10. Synthesize into an IC-ready recommendation with full source attribution
+
+KEY BENCHMARKS TO VALIDATE (use get_hotel_benchmarks):
+- ADR vs city-tier benchmark (Tier-1: ₹10,950, Tier-2: ₹7,730, Tier-3: ₹5,980)
+- Occupancy vs benchmark (Tier-1: 75.2%, Tier-2: 67.8%, Tier-3: 56.5%)
+- Cap rate vs segment range (Luxury: 6.5-8%, Upscale: 7.5-9.5%, Midscale: 9-12%)
+- Construction cost/key vs benchmark (5-star: ₹90-200L, 4-star: ₹50-120L, 3-star: ₹25-60L)
 
 IMPORTANT: Never ask the user for a deal ID. Always use list_deals first to find deals by name, then use the ID from that result.
 

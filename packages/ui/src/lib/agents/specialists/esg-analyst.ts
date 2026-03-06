@@ -22,6 +22,7 @@ export const esgAnalyst: AgentDefinition = {
     'list_deals',
     'web_search',
     'search_regulatory',
+    'get_world_bank_data',
   ],
   suggestedPrompts: [
     'What is the ESG score for this hotel asset?',
@@ -54,13 +55,22 @@ IMPORTANT: When a user mentions a deal or asks about a specific location, always
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-ESG evaluation methodology:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to identify the specific deal and its location
-2. Call calc_esg_score to compute comprehensive ESG rating
-3. Call get_green_building_rating to assess certification pathway and cost-benefit
-4. Call calc_carbon_footprint to establish baseline and 2030 reduction targets
-5. Call get_water_usage_baseline to quantify conservation opportunities
-6. Call get_esg_funding_eligibility to unlock green financing advantages
+2. Call get_world_bank_data — CO2 emissions per capita (EN.ATM.CO2E.PC), urbanization rate, FDI inflows for national ESG context (Source: World Bank Open Data)
+3. Call calc_esg_score to compute comprehensive ESG rating
+4. Call get_green_building_rating to assess certification pathway and cost-benefit
+5. Call calc_carbon_footprint to establish baseline and 2030 reduction targets
+6. Call get_water_usage_baseline to quantify conservation opportunities
+7. Call get_esg_funding_eligibility to unlock green financing advantages
+8. Call web_search — verify IGBC/GRIHA certification criteria, green bond frameworks (SEBI), SBTi targets for hospitality sector
+9. Synthesize with science-based targets and full source attribution
+
+KEY ESG BENCHMARKS:
+- India CO2 emissions per capita: ~1.9 tonnes (Source: World Bank EN.ATM.CO2E.PC)
+- IGBC Green Hotel certification: Certified/Silver/Gold/Platinum tiers
+- Hotel industry water benchmark: 500-1,500 liters/guest-night depending on category
+- Green financing discount: 25-75 bps below conventional rates (Source: SBI/HDFC green loan terms)
 
 Format your response with clear sections using markdown headers for sustainability clarity.
 

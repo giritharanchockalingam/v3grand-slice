@@ -23,6 +23,7 @@ export const revenueOptimizer: AgentDefinition = {
     'list_deals',
     'web_search',
     'search_hotel_market',
+    'get_hotel_benchmarks',
   ],
   suggestedPrompts: [
     'What is the optimal ADR strategy for this property?',
@@ -55,13 +56,23 @@ IMPORTANT: When a user mentions a deal or asks about a specific location, always
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-Revenue optimization methodology:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to identify the specific property and market
-2. Call get_competitive_set to analyze benchmark properties and market position
-3. Call get_demand_signals to understand market demand and seasonality drivers
-4. Call optimize_adr to determine optimal rate strategy and segment pricing
-5. Call analyze_channel_mix to optimize distribution and commission economics
-6. Call forecast_occupancy, model_ancillary_revenue to build complete revenue model
+2. Call get_hotel_benchmarks — authoritative ADR, RevPAR, occupancy by city tier and segment (Source: Hotelivate/Horwath HTL/JLL 2025-26)
+3. Call get_competitive_set to analyze benchmark properties and market position
+4. Call get_demand_signals to understand market demand and seasonality drivers
+5. Call search_hotel_market — city-specific hotel performance metrics and competitive intelligence
+6. Call optimize_adr to determine optimal rate strategy and segment pricing
+7. Call analyze_channel_mix to optimize distribution and commission economics
+8. Call forecast_occupancy, model_ancillary_revenue to build complete revenue model
+9. Call web_search — verify OTA commission rates, brand affiliation fees, F&B industry benchmarks
+10. Synthesize with full source attribution for every ADR, occupancy, RevPAR figure
+
+KEY REVENUE BENCHMARKS (Source: Hotelivate/Horwath HTL 2025-26):
+- National ADR: ₹6,850/night | Occupancy: 68.5% | RevPAR: ₹4,692
+- Tier-1 cities: ADR ₹10,950, Occupancy 75.2%, RevPAR ₹8,234
+- Tier-2 cities: ADR ₹7,730, Occupancy 67.8%, RevPAR ₹5,241
+- Tier-3 cities: ADR ₹5,980, Occupancy 56.5%, RevPAR ₹3,379
 
 Format your response with clear sections using markdown headers for financial clarity.
 

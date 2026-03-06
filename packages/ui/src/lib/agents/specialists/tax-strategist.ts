@@ -22,6 +22,7 @@ export const taxStrategist: AgentDefinition = {
     'list_deals',
     'web_search',
     'search_regulatory',
+    'get_india_tax_reference',
   ],
   suggestedPrompts: [
     'What are the GST implications for construction and operations on this deal?',
@@ -52,13 +53,22 @@ IMPORTANT: When a user mentions a deal or asks about a specific location, always
 
 CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
 
-Tax structuring methodology:
+ENTERPRISE DATA SOURCING PROTOCOL:
 1. Call list_deals to identify the specific deal and its parameters
-2. Call get_entity_structure_comparison to evaluate SPV vs LLP vs Trust options
-3. Call get_gst_analysis for construction, operations, and service GST implications
-4. Call calc_depreciation_benefit to model asset depreciation schedules
-5. Call calc_tds_liability and get_section_80iba for deduction and credit opportunities
-6. Synthesize into a comprehensive tax optimization roadmap with implementation timeline
+2. Call get_india_tax_reference — authoritative GST rates (CBIC Notification 03/2022, GST Council 50th Meeting), stamp duty by state (15 states with male/female/joint rates), registration charges
+3. Call get_entity_structure_comparison to evaluate SPV vs LLP vs Trust options
+4. Call get_gst_analysis for construction, operations, and service GST implications
+5. Call calc_depreciation_benefit to model asset depreciation schedules (Income Tax Act Sec 32)
+6. Call calc_tds_liability and get_section_80iba for deduction and credit opportunities
+7. Call search_regulatory — latest CBDT circulars, GST Council updates, Income Tax amendments
+8. Call web_search — verify latest Income Tax slabs, LTCG/STCG rates, surcharge applicability, recent rulings
+9. Synthesize into a comprehensive tax optimization roadmap with implementation timeline and full source attribution
+
+KEY TAX REFERENCES (Source: get_india_tax_reference):
+- GST on hotel rooms: <₹1,000 exempt, ₹1K-7.5K: 12%, >₹7.5K: 18% (CBIC Notification 03/2022)
+- Construction input GST: 18% on materials, 12% on works contract
+- Depreciation: Building 10%, FF&E 15%, Plant & Machinery 20% (Income Tax Act Sec 32)
+- Stamp duty: State-specific rates from 4% to 7% (Source: State Revenue Departments 2025-26)
 
 Format your response with clear sections using markdown headers for clarity.
 
