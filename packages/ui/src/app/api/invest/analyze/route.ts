@@ -2,7 +2,7 @@
  * POST /api/invest/analyze — Naive Investor Workflow Orchestrator.
  *
  * 1. Creates a deal from simplified wizard inputs (uses POST /api/deals defaults)
- * 2. Runs ALL 6 CFO specialist agents in parallel against the new deal
+ * 2. Runs ALL 16 specialist agents in parallel against the new deal (two batches)
  * 3. Synthesizes a final verdict (YES / NO / MAYBE) with confidence %
  * 4. Returns complete results for the results page
  */
@@ -13,6 +13,7 @@ import { getAuthUser } from '@/lib/server/auth';
 import { getAgent } from '@/lib/agents/agent-registry';
 import { getClaudeTools, executeTool } from '@/lib/agents/mcp-tool-bridge';
 import { runAgentLoop } from '@/lib/agents/claude-client';
+import { investAnalyzeSchema } from '@/lib/server/schemas';
 import type { ToolContext } from '@v3grand/mcp-server/agent-tools';
 import type { AgentToolCall } from '@/lib/agents/types';
 
@@ -240,7 +241,7 @@ async function synthesizeVerdict(
   const response = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 2048,
-    system: `You are an investment synthesis engine. You receive analysis from 6 specialist CFO agents and must produce a final verdict for a NAIVE INVESTOR who has no financial knowledge.
+    system: `You are an investment synthesis engine. You receive analysis from 16 specialist agents across four domains: Core Analysis, Compliance & Legal, Operations, and Strategy. You must produce a final verdict for a NAIVE INVESTOR who has no financial knowledge.
 
 CRITICAL: You must respond in EXACTLY this JSON format and nothing else:
 {
@@ -275,7 +276,7 @@ Rules:
 **Hotel:** ${input.starRating}-star, ${input.roomCount} rooms
 **Investor wants:** ${input.returnLevel} returns, ${input.riskComfort} risk tolerance
 
-Here are the analyses from our 6 specialist agents:
+Here are the analyses from our 16 specialist agents:
 
 ${agentSummaries}
 
@@ -327,12 +328,15 @@ export async function POST(request: Request) {
     const db = getDb();
     const user = await getAuthUser(request);
 
-    const input = (await request.json()) as InvestWizardInput;
-
-    // Validate required fields
-    if (!input.propertyName || !input.city || !input.state) {
-      return NextResponse.json({ error: 'Property name, city, and state are required' }, { status: 400 });
+    const body = await request.json();
+    const parseResult = investAnalyzeSchema.safeParse(body);
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parseResult.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
+    const input = parseResult.data;
 
     const userEmail = user?.email ?? user?.userId ?? 'investor';
     const userId = user?.userId;
@@ -356,7 +360,17 @@ export async function POST(request: Request) {
       diff: { source: 'naive-investor-wizard', city: input.city, investmentCr: input.investmentAmountCr },
     });
 
-    // Step 2: Run all 6 agents in parallel
+    // Step 2: Run all 16 agents in parallel (two batches)
+    const VERDICT_AGENTS = [
+      'market-analyst', 'deal-underwriter', 'portfolio-risk-officer', 'capital-allocator',
+      'compliance-auditor', 'legal-regulatory', 'tax-strategist', 'forensic-auditor',
+    ];
+    const ENRICHMENT_AGENTS = [
+      'construction-monitor', 'revenue-optimizer', 'proptech-advisor', 'insurance-protection',
+      'esg-analyst', 'debt-structuring', 'lp-relations', 'exit-strategist',
+    ];
+    const ALL_AGENT_IDS = [...VERDICT_AGENTS, ...ENRICHMENT_AGENTS];
+
     const toolContext: ToolContext = {
       userId: userId,
       role: user?.role ?? 'lead_investor',
@@ -366,6 +380,7 @@ export async function POST(request: Request) {
     const city = input.city;
 
     const agentPrompts: Array<{ agentId: string; message: string }> = [
+      // Verdict Agents
       {
         agentId: 'market-analyst',
         message: `Analyze the market conditions for a ${input.starRating}-star hotel investment in ${city}, ${input.state}. What are the macro indicators, city-level demand signals, and overall market health? The deal is called "${dealName}".`,
@@ -375,20 +390,61 @@ export async function POST(request: Request) {
         message: `Provide a full IC-ready analysis of the deal "${dealName}". Score all underwriting factors, run Monte Carlo simulation, and assess deal readiness. This is a ${input.starRating}-star, ${input.roomCount}-room hotel in ${city}.`,
       },
       {
-        agentId: 'construction-monitor',
-        message: `Analyze the construction budget and timeline for "${dealName}". This is a ${input.dealType === 'new_build' ? 'new construction' : input.dealType} project with ₹${input.investmentAmountCr}Cr investment. Check for budget variances and milestone risks.`,
-      },
-      {
-        agentId: 'compliance-auditor',
-        message: `Run a full compliance and audit check for "${dealName}". Verify hash chain integrity, SOC2 controls, audit trail completeness, and validation model status.`,
-      },
-      {
         agentId: 'portfolio-risk-officer',
         message: `Assess the portfolio risk impact of adding "${dealName}" — a ${input.starRating}-star hotel in ${city} with ₹${input.investmentAmountCr}Cr investment. Check risk concentration, run stress tests, and flag any concerns.`,
       },
       {
         agentId: 'capital-allocator',
         message: `Evaluate the capital allocation for "${dealName}" — ₹${input.investmentAmountCr}Cr into a ${input.starRating}-star hotel in ${city}. Compare risk-adjusted returns against portfolio benchmarks and recommend whether this deployment makes sense.`,
+      },
+      {
+        agentId: 'compliance-auditor',
+        message: `Run a full compliance and audit check for "${dealName}". Verify hash chain integrity, SOC2 controls, audit trail completeness, and validation model status.`,
+      },
+      {
+        agentId: 'legal-regulatory',
+        message: `Conduct a comprehensive legal and regulatory review for "${dealName}" in ${city}, ${input.state}. Assess local zoning laws, environmental regulations, labor requirements, and any licensing concerns for hotel operations.`,
+      },
+      {
+        agentId: 'tax-strategist',
+        message: `Develop a tax optimization strategy for "${dealName}". Analyze depreciation schedules, applicable tax incentives, entity structure implications, and GST considerations for hotel investments in ${input.state}.`,
+      },
+      {
+        agentId: 'forensic-auditor',
+        message: `Perform a forensic financial audit of "${dealName}". Validate all projected assumptions, check for hidden contingencies, verify data integrity, and identify any accounting red flags in the deal model.`,
+      },
+      // Enrichment Agents
+      {
+        agentId: 'construction-monitor',
+        message: `Analyze the construction budget and timeline for "${dealName}". This is a ${input.dealType === 'new_build' ? 'new construction' : input.dealType} project with ₹${input.investmentAmountCr}Cr investment. Check for budget variances and milestone risks.`,
+      },
+      {
+        agentId: 'revenue-optimizer',
+        message: `Analyze revenue optimization strategies for "${dealName}". Review pricing models, revenue management tactics, segment mix optimization, and demand management to maximize ADR and occupancy.`,
+      },
+      {
+        agentId: 'proptech-advisor',
+        message: `Evaluate proptech and technology solutions for "${dealName}". Assess property management systems, automation opportunities, guest experience tech, and operational efficiency improvements.`,
+      },
+      {
+        agentId: 'insurance-protection',
+        message: `Review insurance and risk protection for "${dealName}". Recommend coverage for property, liability, loss of revenue, and other hospitality-specific insurance requirements.`,
+      },
+      {
+        agentId: 'esg-analyst',
+        message: `Conduct ESG analysis for "${dealName}". Evaluate sustainability practices, environmental impact, social responsibility, and governance policies for the hotel project.`,
+      },
+      {
+        agentId: 'debt-structuring',
+        message: `Optimize debt structuring for "${dealName}". Recommend financing mix, terms, covenants, and refinancing strategies to maximize returns while managing leverage.`,
+      },
+      {
+        agentId: 'lp-relations',
+        message: `Model LP distributions and investor relations for "${dealName}". Project cash flow distributions, IRR scenarios, and create communication strategies for limited partners.`,
+      },
+      {
+        agentId: 'exit-strategist',
+        message: `Develop exit strategies for "${dealName}". Analyze refinancing options, sale scenarios, recapitalization, and timing considerations for investor exit in ${input.timelineYears} years.`,
       },
     ];
 

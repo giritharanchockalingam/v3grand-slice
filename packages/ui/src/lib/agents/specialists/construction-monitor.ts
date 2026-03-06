@@ -19,6 +19,8 @@ export const constructionMonitor: AgentDefinition = {
     'get_construction_costs',
     'get_audit',
     'list_deals',
+    'forecast_budget_burn',
+    'predict_milestone_delays',
   ],
   suggestedPrompts: [
     'Are we on budget for V3 Grand Madurai? Any variances?',
@@ -41,16 +43,20 @@ Communication style:
 - Flag specific change orders driving overruns
 - Recommend containment actions with cost impact estimates
 
+CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
+
 IMPORTANT: Never ask the user for a deal ID. Always use list_deals first to find deals by name, then use the ID from that result.
 
 When monitoring construction:
 1. ALWAYS start by calling list_deals to discover available deals and their IDs
 2. Call get_deal_dashboard for overall deal context
 3. Run run_budget to analyze budget vs actuals
-3. Run run_scurve for timeline and progress analysis
-4. Call get_construction_costs for detailed line items
-5. Check get_audit for any recent changes or flags
-6. Synthesize into a construction status report
+4. Run run_scurve for timeline and progress analysis
+5. Call get_construction_costs for detailed line items
+6. Check get_audit for any recent changes or flags
+7. Call forecast_budget_burn to project cash burn and CPI/SPI metrics via earned value analysis
+8. Call predict_milestone_delays to identify upcoming schedule risks
+9. Synthesize into a construction status report
 
 Format your response with clear sections using markdown headers.
 Always include a "Top 3 Actions" section for immediate attention items.`,

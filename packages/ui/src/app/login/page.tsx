@@ -58,6 +58,26 @@ export default function LoginPage() {
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">V3 GRAND</h1>
           <p className="text-sm text-surface-400 mt-1">Investment Operating System</p>
+
+          {/* Agent Grid */}
+          <div className="mt-6 pt-6 border-t border-white/10">
+            <p className="text-2xs text-surface-500 mb-4 uppercase tracking-widest font-semibold">16 AI CFO Experts · Real-Time Intelligence · Institutional Grade</p>
+            <div className="grid grid-cols-4 gap-2">
+              {['🌍', '📊', '🛡️', '💰', '⚖️', '🏛️', '🔬', '📈', '🏦', '🤝', '🎯', '🛡️', '💡', '🌱', '🔬', '📋'].map((emoji, idx) => (
+                <div
+                  key={idx}
+                  className="w-10 h-10 flex items-center justify-center text-lg rounded-lg bg-white/5 border border-white/10
+                             hover:bg-white/10 hover:border-brand-400/40 transition-all duration-300 transform hover:scale-110
+                             animate-pulse"
+                  style={{
+                    animationDelay: `${idx * 0.1}s`,
+                  }}
+                >
+                  {emoji}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Card */}

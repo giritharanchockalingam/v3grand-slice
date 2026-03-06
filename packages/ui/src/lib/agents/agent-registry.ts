@@ -1,24 +1,87 @@
 /**
- * Agent Registry: Central catalog of all 6 CFO specialist agents.
+ * Agent Registry: Central catalog of all 16 CFO specialist agents.
  * Used by API routes and UI to discover and configure agents.
+ *
+ * Agents are organized into 4 categories:
+ *   Core Analysis (4) | Compliance & Legal (4) | Operations (4) | Strategy (4)
  */
 
 import type { AgentDefinition, AgentListItem } from './types';
-import { portfolioRiskOfficer } from './specialists/portfolio-risk-officer';
-import { dealUnderwriter } from './specialists/deal-underwriter';
-import { constructionMonitor } from './specialists/construction-monitor';
-import { complianceAuditor } from './specialists/compliance-auditor';
+
+// ─── Core Analysis ───
 import { marketAnalyst } from './specialists/market-analyst';
+import { dealUnderwriter } from './specialists/deal-underwriter';
+import { portfolioRiskOfficer } from './specialists/portfolio-risk-officer';
 import { capitalAllocator } from './specialists/capital-allocator';
 
-/** All 6 CFO specialist agents, ordered by typical usage priority */
+// ─── Compliance & Legal ───
+import { complianceAuditor } from './specialists/compliance-auditor';
+import { legalRegulatory } from './specialists/legal-regulatory';
+import { taxStrategist } from './specialists/tax-strategist';
+import { forensicAuditor } from './specialists/forensic-auditor';
+
+// ─── Operations ───
+import { constructionMonitor } from './specialists/construction-monitor';
+import { revenueOptimizer } from './specialists/revenue-optimizer';
+import { proptechAdvisor } from './specialists/proptech-advisor';
+import { insuranceProtection } from './specialists/insurance-protection';
+
+// ─── Strategy ───
+import { esgAnalyst } from './specialists/esg-analyst';
+import { debtStructuring } from './specialists/debt-structuring';
+import { lpRelations } from './specialists/lp-relations';
+import { exitStrategist } from './specialists/exit-strategist';
+
+/** Agent category groupings for the UI */
+export const AGENT_CATEGORIES = [
+  {
+    id: 'core-analysis',
+    label: 'Core Analysis',
+    description: 'Market intelligence, deal underwriting, risk assessment, and capital allocation',
+    agents: ['market-analyst', 'deal-underwriter', 'portfolio-risk-officer', 'capital-allocator'],
+  },
+  {
+    id: 'compliance-legal',
+    label: 'Compliance & Legal',
+    description: 'Regulatory compliance, legal advisory, tax strategy, and forensic auditing',
+    agents: ['compliance-auditor', 'legal-regulatory', 'tax-strategist', 'forensic-auditor'],
+  },
+  {
+    id: 'operations',
+    label: 'Operations',
+    description: 'Construction monitoring, revenue optimization, technology, and insurance',
+    agents: ['construction-monitor', 'revenue-optimizer', 'proptech-advisor', 'insurance-protection'],
+  },
+  {
+    id: 'strategy',
+    label: 'Strategy',
+    description: 'ESG sustainability, debt structuring, LP relations, and exit planning',
+    agents: ['esg-analyst', 'debt-structuring', 'lp-relations', 'exit-strategist'],
+  },
+] as const;
+
+/** All 16 CFO specialist agents */
 export const AGENTS: AgentDefinition[] = [
-  portfolioRiskOfficer,
-  dealUnderwriter,
-  constructionMonitor,
-  complianceAuditor,
+  // Core Analysis
   marketAnalyst,
+  dealUnderwriter,
+  portfolioRiskOfficer,
   capitalAllocator,
+  // Compliance & Legal
+  complianceAuditor,
+  legalRegulatory,
+  taxStrategist,
+  forensicAuditor,
+  // Operations
+  constructionMonitor,
+  revenueOptimizer,
+  proptechAdvisor,
+  insuranceProtection,
+  // Strategy
+  esgAnalyst,
+  debtStructuring,
+  lpRelations,
+  exitStrategist,
 ];
 
 /** Map for O(1) lookup by agent ID */
@@ -51,8 +114,62 @@ export function getAgentList(): AgentListItem[] {
 export function routeToAgent(message: string): AgentDefinition {
   const lower = message.toLowerCase();
 
+  // ─── New specialist agents (check first for specificity) ───
+
+  // Tax keywords
+  if (/\b(tax|gst|tds|depreciat|section 80|entity structur|income tax|deduction)\b/.test(lower)) {
+    return taxStrategist;
+  }
+
+  // Legal / regulatory keywords
+  if (/\b(rera|zoning|environmental clear|land title|encumbrance|legal|regulatory|crz|eia)\b/.test(lower)) {
+    return legalRegulatory;
+  }
+
+  // ESG keywords
+  if (/\b(esg|sustainab|carbon|green build|igbc|griha|renewable|water usage|emission)\b/.test(lower)) {
+    return esgAnalyst;
+  }
+
+  // Revenue optimization keywords
+  if (/\b(adr|channel mix|revenue optim|ancillary|f&b|revpar|pricing|yield manage|competitive set)\b/.test(lower)) {
+    return revenueOptimizer;
+  }
+
+  // Debt structuring keywords
+  if (/\b(debt|ltv|refinanc|covenant|interest swap|mezzanine|loan structur|dscr)\b/.test(lower)) {
+    return debtStructuring;
+  }
+
+  // LP relations keywords
+  if (/\b(lp |waterfall|distribution|capital call|nav|commitment|investor report|moic|dpi)\b/.test(lower)) {
+    return lpRelations;
+  }
+
+  // Exit strategy keywords
+  if (/\b(exit|cap rate|sale compar|buyer profil|transaction cost|disposition|sell)\b/.test(lower)) {
+    return exitStrategist;
+  }
+
+  // Insurance keywords
+  if (/\b(insurance|liability|business interrupt|hazard|flood|seismic|cyclone|d&o)\b/.test(lower)) {
+    return insuranceProtection;
+  }
+
+  // PropTech keywords
+  if (/\b(proptech|pms|iot|smart build|revenue management system|rms|keyless|technology stack)\b/.test(lower)) {
+    return proptechAdvisor;
+  }
+
+  // Forensic keywords
+  if (/\b(forensic|anomal|fraud|reconcil|benford|whistleblow|expense polic|financial statement)\b/.test(lower)) {
+    return forensicAuditor;
+  }
+
+  // ─── Original 6 agents ───
+
   // Risk keywords
-  if (/\b(risk|stress test|sensitivity|breach|concentrat|hedge)\b/.test(lower)) {
+  if (/\b(risk|stress test|sensitivity|breach|concentrat|hedge|var |value.at.risk)\b/.test(lower)) {
     return portfolioRiskOfficer;
   }
 
@@ -62,7 +179,7 @@ export function routeToAgent(message: string): AgentDefinition {
   }
 
   // Construction keywords
-  if (/\b(construct|budget|milestone|s-curve|scurve|overrun|change order|rfi)\b/.test(lower)) {
+  if (/\b(construct|budget|milestone|s-curve|scurve|overrun|change order|rfi|earned value)\b/.test(lower)) {
     return constructionMonitor;
   }
 
@@ -72,12 +189,12 @@ export function routeToAgent(message: string): AgentDefinition {
   }
 
   // Market keywords
-  if (/\b(market|macro|city|demand|rbi|gdp|inflation|revpar|occupancy)\b/.test(lower)) {
+  if (/\b(market|macro|city|demand|rbi|gdp|inflation|occupancy|sentiment)\b/.test(lower)) {
     return marketAnalyst;
   }
 
   // Capital allocation keywords
-  if (/\b(allocat|deploy|capital|wacc|hurdle|portfolio optim|dry powder)\b/.test(lower)) {
+  if (/\b(allocat|deploy|capital|wacc|hurdle|portfolio optim|dry powder|efficient frontier)\b/.test(lower)) {
     return capitalAllocator;
   }
 

@@ -21,6 +21,8 @@ export const portfolioRiskOfficer: AgentDefinition = {
     'get_macro_indicators',
     'get_deal_dashboard',
     'market_health',
+    'run_correlation_analysis',
+    'calc_var_trend',
   ],
   suggestedPrompts: [
     'Where is my portfolio risk concentrated right now?',
@@ -43,12 +45,16 @@ Communication style:
 - Use tables for multi-deal comparisons
 - Be direct — CFOs don't want hedging language, they want clarity
 
+CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
+
 When analyzing risks:
 1. First call list_deals to understand the full portfolio
 2. Then get_risks for each deal or the portfolio
 3. Use run_stress_test for scenario analysis
 4. Cross-reference with get_macro_indicators for external context
-5. Synthesize into a risk dashboard with concentration analysis
+5. Call run_correlation_analysis to identify tail risk and concentration dependencies
+6. Call calc_var_trend to assess Value-at-Risk and conditional VaR trends
+7. Synthesize into a risk dashboard with concentration analysis
 
 Format your response with clear sections using markdown headers.
 Always end with a "Recommended Actions" section with numbered priorities.`,

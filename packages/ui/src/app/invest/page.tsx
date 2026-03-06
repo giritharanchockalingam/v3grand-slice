@@ -22,12 +22,26 @@ const INDIAN_STATES = [
 ];
 
 const AGENT_PHASES = [
+  // Core Analysis
   { icon: '🌍', name: 'Market Analyst', desc: 'Studying market conditions...' },
   { icon: '📊', name: 'Deal Underwriter', desc: 'Running financial models...' },
-  { icon: '🏗️', name: 'Construction Monitor', desc: 'Checking budget & timeline...' },
-  { icon: '🔒', name: 'Compliance Officer', desc: 'Verifying compliance...' },
   { icon: '🛡️', name: 'Risk Officer', desc: 'Assessing risks...' },
   { icon: '💰', name: 'Capital Advisor', desc: 'Optimizing allocation...' },
+  // Compliance & Legal
+  { icon: '🔒', name: 'Compliance Officer', desc: 'Verifying compliance...' },
+  { icon: '⚖️', name: 'Legal Advisor', desc: 'Checking regulations...' },
+  { icon: '🏛️', name: 'Tax Strategist', desc: 'Analyzing tax impact...' },
+  { icon: '🔬', name: 'Forensic Auditor', desc: 'Validating financials...' },
+  // Operations
+  { icon: '🏗️', name: 'Construction Monitor', desc: 'Checking budget & timeline...' },
+  { icon: '📈', name: 'Revenue Optimizer', desc: 'Maximizing revenue...' },
+  { icon: '💡', name: 'PropTech Advisor', desc: 'Evaluating technology...' },
+  { icon: '🛡️', name: 'Insurance Advisor', desc: 'Assessing coverage...' },
+  // Strategy
+  { icon: '🌱', name: 'ESG Analyst', desc: 'Evaluating sustainability...' },
+  { icon: '🏦', name: 'Debt Advisor', desc: 'Structuring financing...' },
+  { icon: '🤝', name: 'LP Relations', desc: 'Modeling distributions...' },
+  { icon: '🎯', name: 'Exit Strategist', desc: 'Planning exit options...' },
 ];
 
 const DEFAULT_INPUT: InvestWizardInput = {
@@ -608,7 +622,7 @@ function Step4({ input }: { input: InvestWizardInput }) {
           ))}
         </div>
         <p className="text-xs text-surface-500 mt-3">
-          All 6 experts run simultaneously. Expect results in about 30-45 seconds.
+          All 16 experts run simultaneously. Expect results in about 45-60 seconds.
         </p>
       </div>
     </div>
@@ -640,11 +654,11 @@ function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-white mb-2">Our CFO Team is Working</h2>
-        <p className="text-surface-400 mb-8">6 AI experts are analyzing your investment right now</p>
+        <h2 className="text-2xl font-bold text-white mb-2">Our Expert Team is Working</h2>
+        <p className="text-surface-400 mb-8">16 AI experts are analyzing your investment right now</p>
 
         {/* Agent progress cards */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {AGENT_PHASES.map((agent, i) => {
             const isActive = activeAgents.includes(i);
             return (
@@ -674,7 +688,7 @@ function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
         </div>
 
         <p className="text-xs text-surface-500">
-          This usually takes 30-45 seconds. Please don&apos;t close this page.
+          This usually takes 45-60 seconds. Please don&apos;t close this page.
         </p>
       </div>
     </div>

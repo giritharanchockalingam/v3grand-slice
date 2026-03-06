@@ -1,12 +1,125 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth-context';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FloatingAgent } from '../components/agent/FloatingAgent';
 import { NavDealsIcon, NavPortfolioIcon, NavAgentIcon } from '../components/icons/PortalIcons';
+
+// Real agent data from the registry
+const NAV_NAV_AGENT_CATEGORIES = [
+  {
+    name: 'Core Analysis',
+    agents: [
+      { id: 'market-analyst', name: 'Market Intel', icon: '🌍' },
+      { id: 'deal-underwriter', name: 'Deal Underwriter', icon: '📊' },
+      { id: 'portfolio-risk-officer', name: 'Risk Officer', icon: '🛡️' },
+      { id: 'capital-allocator', name: 'Capital Allocator', icon: '💰' },
+    ],
+  },
+  {
+    name: 'Compliance & Legal',
+    agents: [
+      { id: 'compliance-auditor', name: 'Compliance Auditor', icon: '📋' },
+      { id: 'legal-regulatory', name: 'Legal & Regulatory', icon: '⚖️' },
+      { id: 'tax-strategist', name: 'Tax Strategist', icon: '🏛️' },
+      { id: 'forensic-auditor', name: 'Forensic Auditor', icon: '🔬' },
+    ],
+  },
+  {
+    name: 'Operations',
+    agents: [
+      { id: 'construction-monitor', name: 'Construction Monitor', icon: '🏗️' },
+      { id: 'revenue-optimizer', name: 'Revenue Optimizer', icon: '📈' },
+      { id: 'proptech-advisor', name: 'PropTech Advisor', icon: '💡' },
+      { id: 'insurance-protection', name: 'Insurance & Protection', icon: '🛡️' },
+    ],
+  },
+  {
+    name: 'Strategy',
+    agents: [
+      { id: 'esg-analyst', name: 'ESG Analyst', icon: '🌱' },
+      { id: 'debt-structuring', name: 'Debt Structuring', icon: '🏦' },
+      { id: 'lp-relations', name: 'LP Relations', icon: '🤝' },
+      { id: 'exit-strategist', name: 'Exit Strategist', icon: '🎯' },
+    ],
+  },
+];
+
+function AgentsDropdown() {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const isActive = pathname === '/agents' || pathname?.startsWith('/agents/');
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 px-4 py-4 text-sm font-medium transition-all duration-200 border-b-2 ${
+          isActive
+            ? 'text-brand-400 border-brand-400'
+            : 'text-surface-400 border-transparent hover:text-white hover:border-surface-600'
+        }`}
+      >
+        <NavAgentIcon className={isActive ? 'w-5 h-5 text-brand-400' : 'w-5 h-5'} />
+        CFO Agents
+        <svg
+          className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-0 w-96 bg-surface-900 border border-white/10 rounded-xl shadow-glass-lg backdrop-blur-xl z-50">
+          <div className="max-h-96 overflow-y-auto dark-scrollbar">
+            {NAV_AGENT_CATEGORIES.map((category, idx) => (
+              <div key={category.name}>
+                <Link
+                  href="/agents"
+                  className="block px-4 py-3 text-sm font-semibold text-brand-400 hover:bg-white/5 transition-colors border-l-2 border-brand-500"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {category.name}
+                </Link>
+                {category.agents.map((agent) => (
+                  <Link
+                    key={agent.id}
+                    href={`/agents/${agent.id}`}
+                    className="flex items-center gap-3 px-6 py-2.5 text-sm text-surface-300 hover:bg-white/5 hover:text-white transition-colors"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <span className="text-lg">{agent.icon}</span>
+                    <span>{agent.name}</span>
+                  </Link>
+                ))}
+                {idx < NAV_AGENT_CATEGORIES.length - 1 && <div className="h-px bg-white/5 mx-2 my-1" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -16,7 +129,6 @@ function Navbar() {
     { href: '/invest', label: 'Invest', Icon: NavDealsIcon },
     { href: '/deals', label: 'Deals', Icon: NavDealsIcon },
     { href: '/portfolio', label: 'Portfolio', Icon: NavPortfolioIcon },
-    { href: '/agents', label: 'CFO Agents', Icon: NavAgentIcon },
     { href: '/agent', label: 'Chat', Icon: NavAgentIcon },
   ];
 
@@ -41,7 +153,6 @@ function Navbar() {
                 const isActive = pathname === link.href ||
                   (link.href === '/invest' && pathname?.startsWith('/invest/')) ||
                   (link.href === '/deals' && pathname?.startsWith('/deals/')) ||
-                  (link.href === '/agents' && pathname?.startsWith('/agents/')) ||
                   (link.href === '/agent' && pathname === '/agent');
                 return (
                   <Link
@@ -58,6 +169,7 @@ function Navbar() {
                   </Link>
                 );
               })}
+              <AgentsDropdown />
             </div>
           )}
         </div>
@@ -80,6 +192,17 @@ function Navbar() {
               </Link>
 
               <div className="h-6 w-px bg-white/10" />
+
+              {/* Notification Bell */}
+              <button
+                className="p-2 text-surface-400 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-150 relative"
+                title="Notifications"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+              </button>
 
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-xs font-bold shadow-sm">

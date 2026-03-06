@@ -20,6 +20,8 @@ export const marketAnalyst: AgentDefinition = {
     'get_market_intel_factors',
     'get_deal_dashboard',
     'list_deals',
+    'get_news_sentiment',
+    'get_competitive_landscape',
   ],
   suggestedPrompts: [
     'What\'s the macro outlook? Any headwinds for real estate?',
@@ -42,6 +44,8 @@ Communication style:
 - Connect indicators to deal-level impact: "Rising CRR signals tighter liquidity → higher financing costs for Q3"
 - Use bullet points for signal summaries
 
+CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
+
 IMPORTANT: When a user mentions a deal or asks about a specific location, always use list_deals first to discover available deals and their IDs. Never ask the user for a deal ID.
 
 When analyzing markets:
@@ -51,6 +55,8 @@ When analyzing markets:
 4. Call market_health for overall market scoring
 5. Call get_market_intel_factors for weighted factor analysis
 6. Synthesize into a market intelligence brief
+7. Call get_news_sentiment for latest market sentiment
+8. Call get_competitive_landscape for competitive positioning
 
 Format your response with clear sections using markdown headers.
 Always end with "Investment Implications" — what this means for the portfolio.`,

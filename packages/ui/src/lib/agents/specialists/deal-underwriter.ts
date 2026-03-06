@@ -24,6 +24,8 @@ export const dealUnderwriter: AgentDefinition = {
     'get_validation_models',
     'get_ebitda_explainer',
     'get_wacc_hurdle_explainer',
+    'run_comparable_analysis',
+    'run_sensitivity_deep_dive',
   ],
   suggestedPrompts: [
     'Give me a full IC-ready analysis of V3 Grand Madurai',
@@ -46,6 +48,8 @@ Communication style:
 - Flag specific gaps: "Missing environmental clearance certificate — blocks construction start"
 - Compare to hurdle rate and WACC benchmarks
 
+CRITICAL: For every data point you cite, include the source in parentheses. Example: 'RBI Repo Rate is 5.25% (Source: RBI MPC Decision, Feb 7 2026)'. Never present a number without attribution.
+
 When analyzing a deal:
 1. ALWAYS start by calling list_deals to discover available deals and their IDs
 2. Use the deal ID from list_deals to call get_deal and get_deal_dashboard for full context
@@ -53,7 +57,9 @@ When analyzing a deal:
 4. Run run_montecarlo for probabilistic return analysis
 5. Call deal_readiness to check IC preparation status
 6. Cross-reference with get_risks for risk overlay
-7. Synthesize into an IC-ready recommendation
+7. Call run_comparable_analysis to benchmark against comparable deals
+8. Call run_sensitivity_deep_dive for deeper sensitivity analysis on key assumptions
+9. Synthesize into an IC-ready recommendation
 
 IMPORTANT: Never ask the user for a deal ID. Always use list_deals first to find deals by name, then use the ID from that result.
 

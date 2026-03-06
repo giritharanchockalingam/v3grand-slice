@@ -5,6 +5,14 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { InvestAnalysisResponse, AgentResult } from '@/hooks/use-invest-analysis';
 
+/** Group agent results by category */
+const RESULT_CATEGORIES = [
+  { label: 'Core Analysis', icon: '📊', agentIds: ['market-analyst', 'deal-underwriter', 'portfolio-risk-officer', 'capital-allocator'] },
+  { label: 'Compliance & Legal', icon: '⚖️', agentIds: ['compliance-auditor', 'legal-regulatory', 'tax-strategist', 'forensic-auditor'] },
+  { label: 'Operations', icon: '🏗️', agentIds: ['construction-monitor', 'revenue-optimizer', 'proptech-advisor', 'insurance-protection'] },
+  { label: 'Strategy', icon: '🎯', agentIds: ['esg-analyst', 'debt-structuring', 'lp-relations', 'exit-strategist'] },
+];
+
 export default function InvestResultsPage() {
   return (
     <Suspense fallback={
@@ -127,15 +135,39 @@ function InvestResultsContent() {
           </div>
         )}
 
-        {/* Agent Results */}
+        {/* Agent Results by Category */}
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span>🧠</span> What Our Experts Found
           </h2>
-          <div className="space-y-3">
-            {result.agentResults.map((agent) => (
-              <AgentResultCard key={agent.agentId} agent={agent} />
-            ))}
+          <div className="space-y-4">
+            {RESULT_CATEGORIES.map((category) => {
+              const categoryResults = result.agentResults.filter((agent) =>
+                category.agentIds.includes(agent.agentId)
+              );
+
+              return (
+                <div key={category.label} className="bg-surface-900/50 rounded-xl border border-surface-800 overflow-hidden">
+                  {/* Category Header */}
+                  <div className="px-4 py-3 border-b border-surface-800 flex items-center gap-2 bg-surface-900/80">
+                    <span className="text-lg">{category.icon}</span>
+                    <h3 className="text-sm font-semibold text-white">{category.label}</h3>
+                    <span className="ml-auto text-xs text-surface-500">{categoryResults.length} agents</span>
+                  </div>
+
+                  {/* Category Results */}
+                  <div className="p-3 space-y-3">
+                    {categoryResults.length > 0 ? (
+                      categoryResults.map((agent) => (
+                        <AgentResultCard key={agent.agentId} agent={agent} />
+                      ))
+                    ) : (
+                      <p className="text-xs text-surface-500 py-2">No results for this category</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
