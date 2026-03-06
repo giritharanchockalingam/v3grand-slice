@@ -16,10 +16,9 @@ test.describe('Full Deal Flow (Integration)', () => {
 
     // Step 3: Click through all 10 tabs, verify each loads without error
     for (const label of TAB_LABELS) {
-      // Wait for button to be stable before clicking (handles React re-renders)
+      // Scroll tab button into view (tabs may overflow on smaller viewports)
       const btn = page.getByRole('button', { name: label });
-      await expect(btn).toBeVisible({ timeout: 10_000 });
-      // Use force click to handle element detach/re-render race conditions
+      await btn.scrollIntoViewIfNeeded({ timeout: 10_000 });
       await btn.click({ timeout: 15_000 });
       // Brief wait for tab content to begin loading
       await page.waitForTimeout(500);
