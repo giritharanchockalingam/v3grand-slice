@@ -46,6 +46,41 @@ interface AgentLoopResult {
   toolCalls: AgentToolCall[];
 }
 
+/** Max retries for rate-limited API calls */
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 2_000;
+
+/**
+ * Call Anthropic messages.create with automatic retry on 429 rate-limit errors.
+ * Uses exponential backoff: 2s → 4s → 8s.
+ */
+async function createWithRetry(
+  client: Anthropic,
+  params: Anthropic.MessageCreateParamsNonStreaming,
+): Promise<Anthropic.Message> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await client.messages.create(params);
+    } catch (err: unknown) {
+      const isRateLimit =
+        (err instanceof Anthropic.RateLimitError) ||
+        (err instanceof Error && err.message.includes('rate_limit')) ||
+        (err instanceof Error && err.message.includes('429'));
+
+      if (isRateLimit && attempt < MAX_RETRIES) {
+        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        const jitter = Math.random() * 1_000;
+        console.log(`[retry] Rate limited, waiting ${Math.round(backoff + jitter)}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        await new Promise((resolve) => setTimeout(resolve, backoff + jitter));
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Unreachable, but TypeScript wants it
+  throw new Error('Exceeded max retries');
+}
+
 /**
  * Run the agent loop: send messages to Claude, execute any tool calls,
  * feed results back, repeat until text-only response.
@@ -70,7 +105,7 @@ export async function runAgentLoop({
   ];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await client.messages.create({
+    const response = await createWithRetry(client, {
       model: MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,

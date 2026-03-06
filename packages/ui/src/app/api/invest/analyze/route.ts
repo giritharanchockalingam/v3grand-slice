@@ -524,14 +524,42 @@ export async function POST(request: Request) {
       },
     ];
 
-    // Use Promise.allSettled so partial failures don't kill the whole analysis
-    const settledResults = await Promise.allSettled(
-      agentPrompts.map(({ agentId, message }) =>
-        runSingleAgent(agentId, message, toolContext)
-      )
+    // Run agents in staggered batches of 4 to avoid Anthropic rate limits.
+    // Each batch runs in parallel; batches are staggered by 1.5s.
+    const BATCH_SIZE = 4;
+    const BATCH_DELAY_MS = 1_500;
+
+    const batches: Array<Array<{ agentId: string; message: string; idx: number }>> = [];
+    for (let i = 0; i < agentPrompts.length; i += BATCH_SIZE) {
+      batches.push(
+        agentPrompts.slice(i, i + BATCH_SIZE).map((p, j) => ({ ...p, idx: i + j }))
+      );
+    }
+
+    // Launch all batches concurrently, but stagger their start times
+    const allSettled = new Array<PromiseSettledResult<AgentResult>>(agentPrompts.length);
+
+    const batchPromises = batches.map((batch, batchIdx) =>
+      (async () => {
+        // Stagger: batch 0 starts immediately, batch 1 after 1.5s, batch 2 after 3s, etc.
+        if (batchIdx > 0) {
+          await new Promise((r) => setTimeout(r, BATCH_DELAY_MS * batchIdx));
+        }
+        const results = await Promise.allSettled(
+          batch.map(({ agentId, message }) =>
+            runSingleAgent(agentId, message, toolContext)
+          )
+        );
+        // Place results back in original order
+        results.forEach((result, i) => {
+          allSettled[batch[i].idx] = result;
+        });
+      })()
     );
 
-    const agentResults: AgentResult[] = settledResults.map((settled, idx) => {
+    await Promise.all(batchPromises);
+
+    const agentResults: AgentResult[] = allSettled.map((settled, idx) => {
       if (settled.status === 'fulfilled') return settled.value;
       const agentId = agentPrompts[idx].agentId;
       const agent = getAgent(agentId);
