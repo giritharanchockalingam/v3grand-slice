@@ -31,6 +31,19 @@ const INDIAN_AIRPORTS: Airport[] = [
   { name: 'Biju Patnaik (Bhubaneswar)', code: 'BBI', lat: 20.2444, lng: 85.8178 },
   { name: 'Coimbatore International', code: 'CJB', lat: 11.0300, lng: 77.0434 },
   { name: 'Bagdogra Airport', code: 'IXB', lat: 26.6812, lng: 88.3286 },
+  { name: 'Madurai Airport', code: 'IXM', lat: 9.8345, lng: 78.0934 },
+  { name: 'Tiruchirapalli International', code: 'TRZ', lat: 10.7654, lng: 78.7097 },
+  { name: 'Visakhapatnam Airport', code: 'VTZ', lat: 17.7212, lng: 83.2245 },
+  { name: 'Mangalore International', code: 'IXE', lat: 12.9613, lng: 74.8900 },
+  { name: 'Varanasi Airport', code: 'VNS', lat: 25.4524, lng: 82.8593 },
+  { name: 'Chandigarh Airport', code: 'IXC', lat: 30.6735, lng: 76.7885 },
+  { name: 'Raipur Airport', code: 'RPR', lat: 21.1804, lng: 81.7388 },
+  { name: 'Ranchi Airport', code: 'IXR', lat: 23.3143, lng: 85.3217 },
+  { name: 'Patna Airport', code: 'PAT', lat: 25.5913, lng: 85.0880 },
+  { name: 'Dehradun Airport', code: 'DED', lat: 30.1897, lng: 78.1803 },
+  { name: 'Srinagar Airport', code: 'SXR', lat: 33.9871, lng: 74.7742 },
+  { name: 'Calicut International', code: 'CCJ', lat: 11.1368, lng: 75.9553 },
+  { name: 'Mysore Airport', code: 'MYQ', lat: 12.2300, lng: 76.6556 },
 ];
 
 /** Convert degrees to radians */
