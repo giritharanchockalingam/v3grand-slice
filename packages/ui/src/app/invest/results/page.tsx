@@ -1,11 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { InvestAnalysisResponse, AgentResult } from '@/hooks/use-invest-analysis';
 
 export default function InvestResultsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-surface-950 flex items-center justify-center">
+        <div className="text-surface-400">Loading results...</div>
+      </div>
+    }>
+      <InvestResultsContent />
+    </Suspense>
+  );
+}
+
+function InvestResultsContent() {
   const searchParams = useSearchParams();
   const dealId = searchParams.get('dealId');
   const [result, setResult] = useState<InvestAnalysisResponse | null>(null);
