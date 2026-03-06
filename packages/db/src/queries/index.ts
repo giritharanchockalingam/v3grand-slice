@@ -1,7 +1,7 @@
 // ─── Query Helpers ──────────────────────────────────────────────────
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory, assumptions } from '../schema/index.js';
+import { deals, engineResults, recommendations, auditLog, users, budgetLines, changeOrders, rfis, milestones, domainEvents, dealAccess, risks, marketDataHistory, assumptions } from '../schema/index';
 
 type DB = PostgresJsDatabase;
 

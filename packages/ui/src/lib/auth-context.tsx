@@ -36,10 +36,10 @@ const DEMO_USERS: Record<string, { user: User; role: string }> = {
 const DEMO_TOKEN = 'demo-jwt-token-v3grand-preview';
 
 function isDemoMode(): boolean {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL;
-  // Demo mode when no API URL is configured or we're on Vercel without a backend
-  if (!apiBase) return true;
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) return true;
+  // Demo mode ONLY when explicitly set via env var.
+  // With the refactored architecture (Next.js API routes with direct DB access),
+  // we never need demo mode — the API routes talk to Supabase directly.
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') return true;
   return false;
 }
 

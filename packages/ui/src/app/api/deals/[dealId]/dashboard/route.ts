@@ -1,27 +1,121 @@
 import { NextResponse } from 'next/server';
+import { getDb } from '@/lib/server/db';
+import {
+  getDealById, getLatestEngineResult, getLatestEngineResultByScenario,
+  getLatestRecommendation, getRecentAudit, getConstructionSummary,
+} from '@v3grand/db';
+import { recommendations } from '@v3grand/db';
+import { eq, desc } from 'drizzle-orm';
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
-  const { dealId } = await params;
-  return NextResponse.json({
-    dealId,
-    kpis: {
-      irr: 18.5,
-      equityMultiple: 2.1,
-      cashOnCash: 9.2,
-      debtServiceCoverageRatio: 1.45,
-      ltv: 0.65,
-    },
-    phases: [
-      { name: 'Screening', status: 'completed' },
-      { name: 'Underwriting', status: 'active' },
-      { name: 'Due Diligence', status: 'pending' },
-      { name: 'Closing', status: 'pending' },
-      { name: 'Asset Management', status: 'pending' },
-    ],
-    alerts: [],
-    recentActivity: [],
-  });
+  try {
+    const { dealId } = await params;
+    const db = getDb();
+    const dealRow = await getDealById(db, dealId);
+    if (!dealRow) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+
+    const [latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestSCurveResult, latestDecisionResult, audit, constructionSummary] = await Promise.all([
+      getLatestEngineResultByScenario(db, dealId, 'underwriter', 'base'),
+      getLatestRecommendation(db, dealId),
+      getLatestEngineResult(db, dealId, 'montecarlo'),
+      getLatestEngineResult(db, dealId, 'factor'),
+      getLatestEngineResult(db, dealId, 'budget'),
+      getLatestEngineResult(db, dealId, 'scurve'),
+      getLatestEngineResult(db, dealId, 'decision'),
+      getRecentAudit(db, dealId, 50),
+      getConstructionSummary(db, dealId),
+    ]);
+
+    const recHistory = await db.select()
+      .from(recommendations)
+      .where(eq(recommendations.dealId, dealId))
+      .orderBy(desc(recommendations.version))
+      .limit(20);
+
+    const latestProforma = latestUW ? (() => {
+      const output = latestUW.output as any;
+      return {
+        scenarioKey: output.scenarioKey, years: output.years, irr: output.irr,
+        npv: output.npv, equityMultiple: output.equityMultiple, avgDSCR: output.avgDSCR,
+        paybackYear: output.paybackYear, exitValue: output.exitValue,
+        totalInvestment: output.totalInvestment, equityInvestment: output.equityInvestment,
+      };
+    })() : null;
+
+    const latestRecommendation = latestRec ? {
+      id: latestRec.id, dealId: latestRec.dealId, version: latestRec.version,
+      timestamp: latestRec.createdAt.toISOString(),
+      verdict: latestRec.verdict, confidence: latestRec.confidence,
+      triggerEvent: latestRec.triggerEvent,
+      proformaSnapshot: latestRec.proformaSnapshot,
+      gateResults: latestRec.gateResults,
+      explanation: latestRec.explanation,
+      previousVerdict: latestRec.previousVerdict,
+      isFlip: latestRec.isFlip === 'true',
+    } : null;
+
+    const constructionProgress = constructionSummary ? {
+      totalBudget: constructionSummary.totalBudget,
+      actualSpend: constructionSummary.totalActualSpend,
+      commitments: constructionSummary.totalCommitments,
+      approvedCOs: constructionSummary.totalApprovedCOs,
+      variance: constructionSummary.budgetVariance,
+      completionPct: constructionSummary.completionPct,
+    } : null;
+
+    const recentEvents = audit.map(a => {
+      let severity: string = 'info';
+      if (a.action.includes('failed') || a.action.includes('crash')) severity = 'critical';
+      else if (a.action.includes('flip') || a.action.includes('overrun')) severity = 'warning';
+      return {
+        id: a.id, type: a.action, timestamp: a.timestamp.toISOString(),
+        description: `${a.module}: ${a.action}`, module: a.module, severity, userId: a.userId, diff: a.diff,
+      };
+    });
+
+    return NextResponse.json({
+      deal: {
+        id: dealRow.id, name: dealRow.name, assetClass: dealRow.assetClass,
+        status: dealRow.status, lifecyclePhase: dealRow.lifecyclePhase,
+        currentMonth: dealRow.currentMonth, version: dealRow.version,
+      },
+      activeScenario: dealRow.activeScenarioKey,
+      property: dealRow.property,
+      partnership: dealRow.partnership,
+      marketAssumptions: dealRow.marketAssumptions,
+      financialAssumptions: dealRow.financialAssumptions,
+      capexPlan: dealRow.capexPlan,
+      latestRecommendation,
+      latestProforma,
+      latestMC: latestMCResult ? (latestMCResult.output as any) : null,
+      latestFactor: latestFactorResult ? (latestFactorResult.output as any) : null,
+      latestBudget: latestBudgetResult ? (latestBudgetResult.output as any) : null,
+      latestSCurve: latestSCurveResult ? (latestSCurveResult.output as any) : null,
+      budgetSummary: latestBudgetResult ? (() => {
+        const b = latestBudgetResult.output as any;
+        return { overallStatus: b.overallStatus, varianceToCurrent: b.varianceToCurrent, alerts: b.alerts ?? [] };
+      })() : null,
+      constructionProgress,
+      decisionInsight: latestDecisionResult ? (() => {
+        const d = latestDecisionResult.output as any;
+        return {
+          narrative: d.narrative ?? '', topDrivers: d.topDrivers ?? [],
+          topRisks: d.topRisks ?? [], flipConditions: d.flipConditions ?? [], riskFlags: d.riskFlags ?? [],
+        };
+      })() : null,
+      recentEvents,
+      recommendationHistory: recHistory.map(r => ({
+        version: r.version, verdict: r.verdict, confidence: r.confidence,
+        timestamp: r.createdAt.toISOString(), scenarioKey: r.scenarioKey,
+        explanation: r.explanation, previousVerdict: r.previousVerdict,
+        isFlip: r.isFlip === 'true', gateResults: r.gateResults,
+      })),
+    });
+  } catch (err) {
+    console.error('GET /api/deals/[id]/dashboard failed:', err);
+    return NextResponse.json({ error: 'Failed to fetch dashboard' }, { status: 500 });
+  }
 }

@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@v3grand/core'],
+  transpilePackages: ['@v3grand/core', '@v3grand/db'],
   typescript: {
     // Allow production builds to complete even with type errors
     // (we validate types separately in CI)
