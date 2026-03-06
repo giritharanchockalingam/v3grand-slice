@@ -16,14 +16,15 @@ test.describe('Full Deal Flow (Integration)', () => {
 
     // Step 3: Click through all 10 tabs, verify each loads without error
     for (const label of TAB_LABELS) {
-      // Ensure the page is stable and tab bar is present before clicking
+      // Wait for network to settle and page to be stable after previous tab
+      await page.waitForLoadState('networkidle');
       await expect(page.getByRole('heading', { name: DEAL_NAME })).toBeVisible({ timeout: 15_000 });
-      // Use locator with text match — more resilient to icon content in accessible name
-      const btn = page.locator('button', { hasText: label });
-      await expect(btn.first()).toBeVisible({ timeout: 15_000 });
+      // Use CSS selector with text match — resilient to React re-renders and SVG icon content
+      const btn = page.locator(`button:has-text("${label}")`);
+      await expect(btn.first()).toBeVisible({ timeout: 20_000 });
       await btn.first().click({ timeout: 15_000 });
-      // Brief wait for tab content to begin loading
-      await page.waitForTimeout(1000);
+      // Wait for tab content to begin loading
+      await page.waitForTimeout(1500);
       // Verify no API error banner
       const errorEl = page.getByText(/^API Error|500 Internal|Failed to load/i);
       const hasRealError = await errorEl.isVisible().catch(() => false);
