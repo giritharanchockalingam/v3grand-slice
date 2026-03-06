@@ -17,10 +17,8 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    // Auth (optional — demo mode may not send tokens)
     const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const body = await request.json();
     const { message } = body;
@@ -35,8 +33,8 @@ export async function POST(request: Request) {
     const systemPrompt = `${agent.systemPrompt}\n\n${agent.formatInstructions}`;
 
     const toolContext: ToolContext = {
-      userId: user.userId,
-      role: user.role,
+      userId: user?.userId ?? 'demo-lead-001',
+      role: user?.role ?? 'lead_investor',
     };
 
     const result = await runAgentLoop({

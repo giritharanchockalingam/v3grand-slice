@@ -20,11 +20,8 @@ export const maxDuration = 60; // Vercel function timeout
 
 export async function POST(request: Request) {
   try {
-    // Auth check
+    // Auth (optional — demo mode may not send tokens)
     const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const body = (await request.json()) as AgentChatRequest;
     const { message, history = [] } = body;
@@ -45,10 +42,10 @@ export async function POST(request: Request) {
     // Build the full system prompt with format instructions
     const systemPrompt = `${agent.systemPrompt}\n\n${agent.formatInstructions}`;
 
-    // Tool execution context with user info
+    // Tool execution context with user info (falls back to demo defaults)
     const toolContext: ToolContext = {
-      userId: user.userId,
-      role: user.role,
+      userId: user?.userId ?? 'demo-lead-001',
+      role: user?.role ?? 'lead_investor',
     };
 
     // Run the agent loop
