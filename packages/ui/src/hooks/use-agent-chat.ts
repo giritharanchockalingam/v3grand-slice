@@ -6,14 +6,14 @@
  */
 
 import { useState, useCallback } from 'react';
-import { api } from '@/lib/api-client';
-import type { AgentChatResponse, AgentToolCall } from '@/lib/agents/types';
+import type { AgentToolCall } from '@/lib/agents/types';
 
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   toolCalls?: AgentToolCall[];
   agentId?: string;
+  isError?: boolean;
 }
 
 interface UseAgentChatOptions {
@@ -38,21 +38,48 @@ export function useAgentChat({ agentId }: UseAgentChatOptions) {
           content: m.content,
         }));
 
-        const res = await api.post<AgentChatResponse>('/agents/chat', {
-          agentId,
-          message,
-          history,
+        // Use fetch directly so we can handle non-2xx responses with reply bodies
+        const resp = await fetch('/api/agents/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agentId, message, history }),
         });
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: res.reply,
-            toolCalls: res.toolCalls,
-            agentId: res.agentId,
-          },
-        ]);
+        const data = await resp.json().catch(() => null);
+
+        if (data?.reply) {
+          // Server returned a reply (even on error status codes)
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: data.reply,
+              toolCalls: data.toolCalls,
+              agentId: data.agentId,
+              isError: Boolean(data.error),
+            },
+          ]);
+          if (data.error) setError(data.reply);
+        } else if (!resp.ok) {
+          // Truly broken response — no reply field
+          const fallback = `The agent service returned an error (${resp.status}). Please try again.`;
+          setError(fallback);
+          setMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: fallback, isError: true },
+          ]);
+        } else {
+          // Unexpected shape
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: data?.reply ?? 'No response received.',
+              toolCalls: data?.toolCalls,
+              agentId: data?.agentId,
+            },
+          ]);
+        }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Failed to send message';
         setError(errMsg);
@@ -60,7 +87,8 @@ export function useAgentChat({ agentId }: UseAgentChatOptions) {
           ...prev,
           {
             role: 'assistant',
-            content: `Error: ${errMsg}`,
+            content: 'Unable to reach the agent service. Please check your connection and try again.',
+            isError: true,
           },
         ]);
       } finally {

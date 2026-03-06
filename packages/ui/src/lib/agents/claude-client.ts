@@ -13,10 +13,19 @@ const MAX_TOKENS = 4096;
 
 let clientInstance: Anthropic | null = null;
 
+/** Check whether the Anthropic API key is configured. */
+export function isAnthropicKeyConfigured(): boolean {
+  return Boolean(process.env.ANTHROPIC_API_KEY);
+}
+
 function getClient(): Anthropic {
   if (!clientInstance) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY environment variable is not set');
+    if (!apiKey) {
+      throw new Error(
+        'The Anthropic API key is not configured. Please add ANTHROPIC_API_KEY to your environment variables and redeploy.'
+      );
+    }
     clientInstance = new Anthropic({ apiKey });
   }
   return clientInstance;

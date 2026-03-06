@@ -55,11 +55,18 @@ export async function POST(request: Request) {
 
     if (err instanceof Response) return err;
 
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    const status = message.includes('ANTHROPIC_API_KEY') ? 503 : 500;
-    return NextResponse.json({
-      reply: `Error: ${message}`,
-      toolCallsUsed: 0,
-    }, { status });
+    const errMsg = err instanceof Error ? err.message : 'Internal server error';
+    const isKeyMissing = errMsg.includes('Anthropic API key') || errMsg.includes('ANTHROPIC_API_KEY');
+    const status = isKeyMissing ? 503 : 500;
+
+    return NextResponse.json(
+      {
+        reply: isKeyMissing
+          ? 'The agent system is not fully configured yet. The Anthropic API key needs to be added to the deployment environment variables.'
+          : `Something went wrong. Please try again. (${errMsg})`,
+        toolCallsUsed: 0,
+      },
+      { status },
+    );
   }
 }
