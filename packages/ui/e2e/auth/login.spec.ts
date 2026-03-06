@@ -21,7 +21,7 @@ test.describe('Login Page', () => {
   });
 
   test('shows branding: V3 GRAND title', async ({ page }) => {
-    await expect(page.getByText('V3 GRAND')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'V3 GRAND' })).toBeVisible();
     await expect(page.getByText('Investment Operating System')).toBeVisible();
   });
 

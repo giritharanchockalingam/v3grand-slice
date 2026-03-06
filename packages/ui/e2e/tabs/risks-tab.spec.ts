@@ -10,19 +10,27 @@ test.describe('Risks Tab', () => {
   });
 
   test('risk entries are displayed', async ({ authedPage: page }) => {
-    // Should have risk cards or table rows
     await expect(page.getByText(/risk|threat|issue/i).first()).toBeVisible({ timeout: 15_000 });
   });
 
   test('risks show category badges', async ({ authedPage: page }) => {
-    // Categories like market, construction, financial, regulatory
     const categories = page.getByText(/market|construction|financial|regulatory|operational/i);
     await expect(categories.first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test('risks show likelihood and impact', async ({ authedPage: page }) => {
-    const likelihoodOrImpact = page.getByText(/likelihood|impact|severity|probability/i);
-    await expect(likelihoodOrImpact.first()).toBeVisible({ timeout: 15_000 });
+  test('risk matrix sub-tab shows Probability vs Impact', async ({ authedPage: page }) => {
+    // Click Risk Matrix sub-tab
+    await page.getByText('Risk Matrix').first().click();
+    await expect(page.getByText(/Probability vs Impact/i).first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('risk list sub-tab shows likelihood and impact columns', async ({ authedPage: page }) => {
+    // Click Risk List sub-tab
+    await page.getByText('Risk List').first().click();
+    const table = page.locator('table').first();
+    await expect(table).toBeVisible({ timeout: 15_000 });
+    await expect(table.getByText('Likelihood').first()).toBeVisible();
+    await expect(table.getByText('Impact').first()).toBeVisible();
   });
 
   test('risk status indicators present', async ({ authedPage: page }) => {

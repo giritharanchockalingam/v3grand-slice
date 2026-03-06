@@ -11,8 +11,8 @@ test.describe('Deal Detail Page', () => {
 
   test('deal header shows name, asset class, phase, month, and location', async ({ authedPage: page }) => {
     await expect(page.getByRole('heading', { name: DEAL_NAME })).toBeVisible();
-    await expect(page.getByText('hotel')).toBeVisible();
-    await expect(page.getByText('construction', { exact: false })).toBeVisible();
+    await expect(page.getByText('hotel').first()).toBeVisible();
+    await expect(page.getByText('Phase: construction')).toBeVisible();
     await expect(page.getByText('Month 14')).toBeVisible();
     await expect(page.getByText('Madurai, Tamil Nadu')).toBeVisible();
   });
@@ -38,7 +38,7 @@ test.describe('Deal Detail Page', () => {
     await page.getByRole('button', { name: 'Assumptions' }).click();
     // URL should not change (tabs are in-page)
     expect(page.url()).toBe(startUrl);
-    // Assumptions content should appear
-    await expect(page.getByText('Revenue Drivers').or(page.getByText('Base ADR'))).toBeVisible({ timeout: 10_000 });
+    // Assumptions content should appear — use specific heading to avoid strict mode
+    await expect(page.getByRole('heading', { name: 'Revenue Drivers' })).toBeVisible({ timeout: 10_000 });
   });
 });

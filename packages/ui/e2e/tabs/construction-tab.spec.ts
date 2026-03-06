@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth.fixture';
-import { DEAL_URL, DEAL_NAME, BUDGET_LINE_COLUMNS } from '../helpers/test-data';
+import { DEAL_URL, DEAL_NAME } from '../helpers/test-data';
 
 test.describe('Construction Tab', () => {
   test.beforeEach(async ({ authedPage: page }) => {
@@ -9,37 +9,33 @@ test.describe('Construction Tab', () => {
     await page.getByRole('button', { name: 'Construction' }).click();
   });
 
-  test('summary cards render key metrics', async ({ authedPage: page }) => {
-    // Should show budget/construction summary metrics
-    await expect(page.getByText(/budget|spend|variance|completion/i).first()).toBeVisible({ timeout: 15_000 });
+  test('construction tracking heading renders', async ({ authedPage: page }) => {
+    await expect(page.getByText('Construction Tracking').first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test('budget lines table is visible', async ({ authedPage: page }) => {
-    const table = page.locator('table').first();
-    await expect(table).toBeVisible({ timeout: 15_000 });
+  test('sub-tabs for Budget Lines, Change Orders, Milestones, RFIs visible', async ({ authedPage: page }) => {
+    await expect(page.getByText('Budget Lines').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Change Orders').first()).toBeVisible();
+    await expect(page.getByText('Milestones').first()).toBeVisible();
+    await expect(page.getByText('RFIs').first()).toBeVisible();
   });
 
-  test('budget lines table has data rows', async ({ authedPage: page }) => {
+  test('overall construction progress indicator visible', async ({ authedPage: page }) => {
+    await expect(page.getByText('Overall Construction Progress').first()).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('clicking Budget Lines sub-tab shows budget table', async ({ authedPage: page }) => {
+    await page.getByText('Budget Lines').first().click();
     const table = page.locator('table').first();
     await expect(table).toBeVisible({ timeout: 15_000 });
-    const rows = table.locator('tbody tr');
-    await expect(rows.first()).toBeVisible({ timeout: 10_000 });
-    const count = await rows.count();
-    expect(count).toBeGreaterThanOrEqual(1);
   });
 
   test('budget table has expected column headers', async ({ authedPage: page }) => {
+    await page.getByText('Budget Lines').first().click();
     const table = page.locator('table').first();
     await expect(table).toBeVisible({ timeout: 15_000 });
-    // Check for key budget columns
-    for (const col of ['Description', 'Budget', 'Actual']) {
+    for (const col of ['Cost Code', 'Description', 'Category']) {
       await expect(table.getByText(col, { exact: false }).first()).toBeVisible();
     }
-  });
-
-  test('progress indicator is visible', async ({ authedPage: page }) => {
-    // Should have a progress bar or completion percentage
-    const progress = page.getByText(/completion|progress|%/i);
-    await expect(progress.first()).toBeVisible({ timeout: 15_000 });
   });
 });

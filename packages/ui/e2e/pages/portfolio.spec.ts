@@ -7,8 +7,9 @@ test.describe('Portfolio Page', () => {
   });
 
   test('page loads with summary cards section', async ({ authedPage: page }) => {
-    // Should have summary metrics visible
-    await expect(page.getByText('Total AUM').or(page.getByText('Portfolio'))).toBeVisible({ timeout: 15_000 });
+    // Use heading for unique match
+    await expect(page.getByRole('heading', { name: 'Portfolio Analytics' })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Total AUM').first()).toBeVisible();
   });
 
   test('deal comparison table has correct column headers', async ({ authedPage: page }) => {
