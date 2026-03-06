@@ -172,8 +172,8 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
   };
 }
 
-/** Per-agent timeout in milliseconds (45 seconds) */
-const AGENT_TIMEOUT_MS = 45_000;
+/** Per-agent timeout in milliseconds (120 seconds) */
+const AGENT_TIMEOUT_MS = 120_000;
 
 /** Run a single agent with timeout protection */
 async function runSingleAgent(
