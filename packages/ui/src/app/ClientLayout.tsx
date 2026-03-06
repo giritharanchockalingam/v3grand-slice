@@ -9,7 +9,7 @@ import { FloatingAgent } from '../components/agent/FloatingAgent';
 import { NavDealsIcon, NavPortfolioIcon, NavAgentIcon } from '../components/icons/PortalIcons';
 
 // Real agent data from the registry
-const NAV_NAV_AGENT_CATEGORIES = [
+const NAV_AGENT_CATEGORIES = [
   {
     name: 'Core Analysis',
     agents: [
