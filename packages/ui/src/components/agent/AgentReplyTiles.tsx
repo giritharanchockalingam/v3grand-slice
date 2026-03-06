@@ -169,7 +169,7 @@ export function AgentReplyTiles({ text, className = '' }: AgentReplyTilesProps) 
             className="rounded-xl border border-surface-200 bg-white shadow-sm overflow-hidden"
           >
             <div className="p-4 flex gap-3">
-              <Icon className="flex-shrink-0 mt-0.5" />
+              <Icon className="w-4 h-4 flex-shrink-0 mt-0.5 text-brand-500" />
               <div className="prose prose-sm max-w-none text-surface-800 min-w-0 flex-1">
                 {renderBlock(block)}
               </div>
