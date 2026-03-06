@@ -15,7 +15,10 @@
     "recharts": "^2.10.0",
     "@anthropic-ai/sdk": "^0.39.0",
     "@v3grand/mcp-server": "workspace:*",
-    "@v3grand/mcp": "workspace:*"
+    "@v3grand/mcp": "workspace:*",
+    "@v3grand/engines": "workspace:*",
+    "zod": "^3.23.0",
+    "zod-to-json-schema": "^3.23.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
