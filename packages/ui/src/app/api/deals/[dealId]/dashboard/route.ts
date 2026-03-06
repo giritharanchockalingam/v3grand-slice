@@ -7,6 +7,7 @@ import {
 } from '@v3grand/db';
 import { recommendations } from '@v3grand/db';
 import { eq, desc } from 'drizzle-orm';
+import { computeAssumptionFingerprint } from '@v3grand/engines';
 
 export async function GET(
   request: Request,
@@ -87,6 +88,26 @@ export async function GET(
       };
     });
 
+    // ── Staleness detection: compare deal fingerprint to latest engine result ──
+    const currentFingerprint = computeAssumptionFingerprint({
+      marketAssumptions: dealRow.marketAssumptions,
+      financialAssumptions: dealRow.financialAssumptions,
+      capexPlan: dealRow.capexPlan,
+      opexModel: (dealRow as any).opexModel,
+      scenarios: (dealRow as any).scenarios,
+      property: dealRow.property,
+      partnership: dealRow.partnership,
+    });
+
+    // Check the latest underwriter result's fingerprint (most critical engine)
+    const latestEngineFingerprint = latestUW
+      ? (latestUW.input as any)?.assumptionFingerprint ?? null
+      : null;
+
+    const resultsStale = latestEngineFingerprint != null
+      ? currentFingerprint !== latestEngineFingerprint
+      : latestUW != null; // No fingerprint on old result = assume stale
+
     return NextResponse.json({
       deal: {
         id: dealRow.id, name: dealRow.name, assetClass: dealRow.assetClass,
@@ -124,6 +145,10 @@ export async function GET(
         explanation: r.explanation, previousVerdict: r.previousVerdict,
         isFlip: r.isFlip === 'true', gateResults: r.gateResults,
       })),
+      // Staleness detection: true if assumptions changed since last engine run
+      resultsStale,
+      assumptionFingerprint: currentFingerprint,
+      lastEngineFingerprint: latestEngineFingerprint,
     });
   } catch (err) {
     console.error('GET /api/deals/[id]/dashboard failed:', err);

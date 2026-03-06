@@ -14,7 +14,7 @@ import { logger } from '@v3grand/core';
 import {
   buildProForma, evaluateDecision,
   scoreFactors, runMonteCarlo, analyzeBudget, distributeSCurve,
-  computeContentHash, MODEL_VERSIONS,
+  computeContentHash, MODEL_VERSIONS, computeAssumptionFingerprint,
 } from '@v3grand/engines';
 import {
   getDealById, insertEngineResult, getLatestEngineResultByScenario,
@@ -122,6 +122,12 @@ export async function recomputeDeal(
   }
   const deal = reconstituteDeal(dealRow);
 
+  // ── 1b. Compute assumption fingerprint for staleness detection ──
+  // This fingerprint is stored in every engine result's input so the dashboard
+  // can compare it against the deal's current state to detect stale results.
+  const assumptionFingerprint = computeAssumptionFingerprint(deal);
+  logger.info('recompute.fingerprint', { ...ctx, assumptionFingerprint: assumptionFingerprint.slice(0, 12) + '…' });
+
   // ── 2. Fetch live macro data for Factor engine ──
   let macroIndicators: import('@v3grand/core').MacroIndicators | undefined;
   try {
@@ -150,7 +156,7 @@ export async function recomputeDeal(
 
     await insertHashedEngineResult(db, {
       dealId, engineName: 'factor',
-      input: { trigger } as Record<string, unknown>,
+      input: { trigger, assumptionFingerprint } as Record<string, unknown>,
       output: factorResult as unknown as Record<string, unknown>,
       durationMs: duration,
       triggeredBy: trigger,
@@ -182,7 +188,7 @@ export async function recomputeDeal(
 
     await insertHashedEngineResult(db, {
       dealId, engineName: 'underwriter', scenarioKey,
-      input: { scenarioKey } as Record<string, unknown>,
+      input: { scenarioKey, assumptionFingerprint } as Record<string, unknown>,
       output: proforma as unknown as Record<string, unknown>,
       durationMs: uwDuration,
       triggeredBy: trigger,
@@ -226,7 +232,7 @@ export async function recomputeDeal(
 
     await insertHashedEngineResult(db, {
       dealId, engineName: 'decision', scenarioKey,
-      input: { scenarioKey, proformaIrr: proforma.irr } as Record<string, unknown>,
+      input: { scenarioKey, proformaIrr: proforma.irr, assumptionFingerprint } as Record<string, unknown>,
       output: decision as unknown as Record<string, unknown>,
       durationMs: decDuration,
       triggeredBy: trigger,
@@ -276,7 +282,7 @@ export async function recomputeDeal(
 
     await insertHashedEngineResult(db, {
       dealId, engineName: 'montecarlo',
-      input: { iterations: 5000, trigger } as Record<string, unknown>,
+      input: { iterations: 5000, trigger, assumptionFingerprint } as Record<string, unknown>,
       output: mcResult as unknown as Record<string, unknown>,
       durationMs: duration,
       triggeredBy: trigger,
@@ -377,7 +383,7 @@ export async function recomputeDeal(
 
       await insertHashedEngineResult(db, {
         dealId, engineName: 'budget',
-        input: { asOfMonth: deal.currentMonth, trigger } as Record<string, unknown>,
+        input: { asOfMonth: deal.currentMonth, trigger, assumptionFingerprint } as Record<string, unknown>,
         output: budgetResult as unknown as Record<string, unknown>,
         durationMs: duration,
         triggeredBy: trigger,
@@ -416,7 +422,7 @@ export async function recomputeDeal(
 
       await insertHashedEngineResult(db, {
         dealId, engineName: 'scurve',
-        input: { itemCount: scurveItems.length, totalMonths: 24, trigger } as Record<string, unknown>,
+        input: { itemCount: scurveItems.length, totalMonths: 24, trigger, assumptionFingerprint } as Record<string, unknown>,
         output: scurveResult as unknown as Record<string, unknown>,
         durationMs: duration,
         triggeredBy: trigger,
@@ -457,7 +463,7 @@ export async function recomputeDeal(
       // Persist the full decision engine output (includes narrative, topDrivers, topRisks, flipConditions)
       await insertHashedEngineResult(db, {
         dealId, engineName: 'decision', scenarioKey: 'base',
-        input: { trigger: `${trigger}.enriched`, hasMC: !!mcResult, hasBudget: !!budgetResult, hasFactor: !!factorResult } as Record<string, unknown>,
+        input: { trigger: `${trigger}.enriched`, hasMC: !!mcResult, hasBudget: !!budgetResult, hasFactor: !!factorResult, assumptionFingerprint } as Record<string, unknown>,
         output: fullDecision as unknown as Record<string, unknown>,
         durationMs: decDuration,
         triggeredBy: `${trigger}.enriched`,

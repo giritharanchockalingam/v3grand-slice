@@ -95,10 +95,39 @@ function canonicalize(obj: unknown): string {
  * Used to tag engine results so auditors can determine which model version produced a result.
  */
 export const MODEL_VERSIONS: Record<string, string> = {
-  factor:      '1.2.0',  // 4-domain weighted scoring, Madurai-specific local scoring
+  factor:      '1.3.0',  // 4-domain weighted scoring, data-driven city classification
   underwriter: '1.1.0',  // 10-year pro forma with Phase 2, level annuity debt
   montecarlo:  '1.0.0',  // 5K iterations, triangular + lognormal, Pearson sensitivity
   budget:      '1.0.0',  // Line-level RAG variance, change order tracking
   scurve:      '1.0.0',  // Logistic + Beta distribution CAPEX curves
   decision:    '1.3.0',  // 10-gate framework, flip detection, narrative composition
 };
+
+/**
+ * Compute a SHA-256 fingerprint of a deal's assumption state.
+ * Used to detect staleness: if the deal's current fingerprint differs from
+ * the fingerprint stored in the latest engine result, results are stale.
+ *
+ * Covers: marketAssumptions, financialAssumptions, capexPlan, opexModel,
+ * scenarios, property, partnership — every input that affects engine output.
+ */
+export function computeAssumptionFingerprint(deal: {
+  marketAssumptions: unknown;
+  financialAssumptions: unknown;
+  capexPlan: unknown;
+  opexModel: unknown;
+  scenarios: unknown;
+  property: unknown;
+  partnership: unknown;
+}): string {
+  const payload = canonicalize({
+    marketAssumptions: deal.marketAssumptions,
+    financialAssumptions: deal.financialAssumptions,
+    capexPlan: deal.capexPlan,
+    opexModel: deal.opexModel,
+    scenarios: deal.scenarios,
+    property: deal.property,
+    partnership: deal.partnership,
+  });
+  return createHash('sha256').update(payload).digest('hex');
+}

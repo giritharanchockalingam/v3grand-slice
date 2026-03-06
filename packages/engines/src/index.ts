@@ -21,7 +21,7 @@ export { hotelPlugin } from './evaluation/plugins/hotel.js';
 export { generateICMemoPDF } from './evaluation/ic-memo.js';
 
 // G-2/F-3: Hash chain & model version registry
-export { computeContentHash, verifyHashChain, MODEL_VERSIONS } from './integrity/hash-chain.js';
+export { computeContentHash, verifyHashChain, MODEL_VERSIONS, computeAssumptionFingerprint } from './integrity/hash-chain.js';
 
 // G-9/F-1: Model validation framework
 export { runBacktest, runChampionChallenger } from './validation/model-validator.js';
