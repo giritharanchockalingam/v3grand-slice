@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from '@v3grand/core';
+import { setAuthToken, clearAuthToken } from './auth-store';
 
 interface AuthContextType {
   user: User | null;
@@ -55,6 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { user: storedUser, token: storedToken } = JSON.parse(stored);
         setUser(storedUser);
         setToken(storedToken);
+        // Sync to auth-store so api-client picks up the token
+        if (storedToken) setAuthToken(storedToken);
       } catch (err) {
         console.error('Failed to restore auth:', err);
       }
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(demoEntry.user);
       setToken(DEMO_TOKEN);
+      setAuthToken(DEMO_TOKEN);
       sessionStorage.setItem('v3grand-auth', JSON.stringify({ user: demoEntry.user, token: DEMO_TOKEN }));
       return;
     }
@@ -91,12 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { user: newUser, token: newToken } = await res.json();
     setUser(newUser);
     setToken(newToken);
+    setAuthToken(newToken);
     sessionStorage.setItem('v3grand-auth', JSON.stringify({ user: newUser, token: newToken }));
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
+    clearAuthToken();
     sessionStorage.removeItem('v3grand-auth');
   };
 

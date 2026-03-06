@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { apiClient } from '../lib/api-client';
 
 /** Wizard input shape matching the API */
 export interface InvestWizardInput {
@@ -114,21 +115,12 @@ export function useInvestAnalysis() {
     }, 1000);
 
     try {
-      const response = await fetch('/api/invest/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
-      });
+      // Use apiClient which auto-injects the auth token
+      const data = await apiClient.post<InvestAnalysisResponse>('/invest/analyze', input);
 
       clearInterval(timer);
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Analysis failed' }));
-        throw new Error(err.error || err.details || `HTTP ${response.status}`);
-      }
-
-      const data: InvestAnalysisResponse = await response.json();
       setResult(data);
       setStatus('complete');
       return data;
