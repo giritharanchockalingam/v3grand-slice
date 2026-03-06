@@ -136,6 +136,13 @@ CRITICAL RULES:
 - End with "I will take questions." — this is IC protocol`;
 
 // ─── Context Builders ──────────────────────────────────────────────
+
+/** Safely format a number with toFixed, handling strings/nulls from JSON */
+function fmt(v: unknown, decimals: number = 1): string {
+  const n = Number(v);
+  return isNaN(n) ? String(v ?? 'N/A') : n.toFixed(decimals);
+}
+
 function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any, budget: any, decision: any): string {
   const parts: string[] = ['=== DEAL DATA ==='];
 
@@ -161,7 +168,7 @@ function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any,
     parts.push(`Partnership: ${ptr.structure}`);
     if (ptr.partners?.length) {
       for (const p of ptr.partners) {
-        parts.push(`  Partner: ${p.name} — ${Math.round(p.equityPct * 100)}% equity, ₹${p.commitmentCr}Cr committed, role: ${p.role}`);
+        parts.push(`  Partner: ${p.name} — ${Math.round(Number(p.equityPct) * 100)}% equity, ₹${p.commitmentCr}Cr committed, role: ${p.role}`);
       }
     }
   }
@@ -169,22 +176,22 @@ function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any,
   // Financial Assumptions
   const fin = dealRow.financialAssumptions as any;
   if (fin) {
-    parts.push(`Financial Assumptions: WACC=${(fin.wacc*100).toFixed(1)}%, Target IRR=${(fin.targetIRR*100).toFixed(1)}%, Equity Ratio=${(fin.equityRatio*100)}%, Debt Rate=${(fin.debtInterestRate*100).toFixed(1)}%, Debt Tenor=${fin.debtTenorYears}yr, Exit Cap Rate=${(fin.exitCapRate*100).toFixed(1)}%`);
+    parts.push(`Financial Assumptions: WACC=${fmt(Number(fin.wacc)*100)}%, Target IRR=${fmt(Number(fin.targetIRR)*100)}%, Equity Ratio=${Math.round(Number(fin.equityRatio)*100)}%, Debt Rate=${fmt(Number(fin.debtInterestRate)*100)}%, Debt Tenor=${fin.debtTenorYears}yr, Exit Cap Rate=${fmt(Number(fin.exitCapRate)*100)}%`);
   }
 
   // Market Assumptions
   const mkt = dealRow.marketAssumptions as any;
   if (mkt) {
-    parts.push(`Market: Base ADR=₹${mkt.adrBase}, Stabilized ADR=₹${mkt.adrStabilized}, Growth=${(mkt.adrGrowthRate*100).toFixed(1)}%/yr`);
+    parts.push(`Market: Base ADR=₹${mkt.adrBase}, Stabilized ADR=₹${mkt.adrStabilized}, Growth=${fmt(Number(mkt.adrGrowthRate)*100)}%/yr`);
     if (mkt.occupancyRamp?.length) {
-      parts.push(`Occupancy Ramp: ${mkt.occupancyRamp.map((o: number) => `${Math.round(o*100)}%`).join(' → ')}`);
+      parts.push(`Occupancy Ramp: ${mkt.occupancyRamp.map((o: any) => `${Math.round(Number(o)*100)}%`).join(' → ')}`);
     }
     if (mkt.segments?.length) {
-      parts.push(`Demand Segments: ${mkt.segments.map((s: any) => `${s.name} ${Math.round(s.pctMix*100)}%`).join(', ')}`);
+      parts.push(`Demand Segments: ${mkt.segments.map((s: any) => `${s.name} ${Math.round(Number(s.pctMix)*100)}%`).join(', ')}`);
     }
     if (mkt.revenueMix) {
       const rm = mkt.revenueMix;
-      parts.push(`Revenue Mix: Rooms ${Math.round(rm.rooms*100)}%, F&B ${Math.round(rm.fb*100)}%, Banquet ${Math.round(rm.banquet*100)}%, Other ${Math.round(rm.other*100)}%`);
+      parts.push(`Revenue Mix: Rooms ${Math.round(Number(rm.rooms)*100)}%, F&B ${Math.round(Number(rm.fb)*100)}%, Banquet ${Math.round(Number(rm.banquet)*100)}%, Other ${Math.round(Number(rm.other)*100)}%`);
     }
   }
 
@@ -203,16 +210,16 @@ function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any,
   // CapEx
   const capex = dealRow.capexPlan as any;
   if (capex?.phase1) {
-    parts.push(`CapEx: Phase 1 Budget ₹${capex.phase1.totalBudgetCr}Cr, Contingency ${(capex.contingencyPct*100).toFixed(0)}%`);
+    parts.push(`CapEx: Phase 1 Budget ₹${capex.phase1.totalBudgetCr}Cr, Contingency ${fmt(Number(capex.contingencyPct)*100, 0)}%`);
   }
 
   // Underwriter Results
   if (uw) {
     const o = uw.output as any;
     parts.push(`\n=== UNDERWRITER ENGINE (Base Case) ===`);
-    parts.push(`IRR: ${(o.irr*100).toFixed(1)}%, NPV: ₹${(o.npv/1e7).toFixed(1)}Cr, Equity Multiple: ${o.equityMultiple?.toFixed(2)}x`);
-    parts.push(`Payback: Year ${o.paybackYear}, Avg DSCR: ${o.avgDSCR?.toFixed(2)}x`);
-    parts.push(`Total Investment: ₹${(o.totalInvestment/1e7).toFixed(1)}Cr, Exit Value: ₹${(o.exitValue/1e7).toFixed(1)}Cr`);
+    parts.push(`IRR: ${fmt(Number(o.irr)*100)}%, NPV: ₹${fmt(Number(o.npv)/1e7)}Cr, Equity Multiple: ${fmt(o.equityMultiple, 2)}x`);
+    parts.push(`Payback: Year ${o.paybackYear}, Avg DSCR: ${fmt(o.avgDSCR, 2)}x`);
+    parts.push(`Total Investment: ₹${fmt(Number(o.totalInvestment)/1e7)}Cr, Exit Value: ₹${fmt(Number(o.exitValue)/1e7)}Cr`);
   }
 
   // Monte Carlo Results
@@ -220,28 +227,29 @@ function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any,
     const o = mc.output as any;
     parts.push(`\n=== MONTE CARLO (5,000 simulations) ===`);
     const pctls = o.percentiles ?? {};
-    parts.push(`IRR Distribution: P10=${((pctls.p10 ?? o.p10Irr)*100).toFixed(1)}%, P50=${((pctls.p50 ?? o.p50Irr)*100).toFixed(1)}%, P90=${((pctls.p90 ?? o.p90Irr)*100).toFixed(1)}%`);
-    parts.push(`P(NPV < 0): ${((o.probNpvNegative ?? o.probNpvNeg)*100).toFixed(1)}%`);
-    parts.push(`P(IRR < WACC): ${((o.probIrrBelowWacc)*100).toFixed(1)}%`);
+    parts.push(`IRR Distribution: P10=${fmt(Number(pctls.p10 ?? o.p10Irr)*100)}%, P50=${fmt(Number(pctls.p50 ?? o.p50Irr)*100)}%, P90=${fmt(Number(pctls.p90 ?? o.p90Irr)*100)}%`);
+    parts.push(`P(NPV < 0): ${fmt(Number(o.probNpvNegative ?? o.probNpvNeg)*100)}%`);
+    parts.push(`P(IRR < WACC): ${fmt(Number(o.probIrrBelowWacc)*100)}%`);
   }
 
   // Factor Results
   if (factor) {
     const o = factor.output as any;
     parts.push(`\n=== FACTOR ENGINE ===`);
-    parts.push(`Composite Score: ${o.compositeScore?.toFixed(1)}/5 (${o.compositeScore >= 4 ? 'Strong' : o.compositeScore >= 3 ? 'Adequate' : 'Below grade'})`);
+    const cs = Number(o.compositeScore);
+    parts.push(`Composite Score: ${fmt(cs)}/5 (${cs >= 4 ? 'Strong' : cs >= 3 ? 'Adequate' : 'Below grade'})`);
     if (o.domainScores) {
-      for (const [domain, score] of Object.entries(o.domainScores as Record<string, number>)) {
-        parts.push(`  ${domain}: ${(score as number).toFixed(1)}/5`);
+      for (const [domain, score] of Object.entries(o.domainScores as Record<string, unknown>)) {
+        parts.push(`  ${domain}: ${fmt(score)}/5`);
       }
     }
     if (o.factors?.length) {
       for (const f of o.factors.slice(0, 8)) {
-        parts.push(`  Factor: ${f.name} (${f.domain}) — Score ${f.score.toFixed(1)}/5 — ${f.rationale}`);
+        parts.push(`  Factor: ${f.name} (${f.domain}) — Score ${fmt(f.score)}/5 — ${f.rationale}`);
       }
     }
-    if (o.impliedCapRate) parts.push(`Implied Cap Rate: ${(o.impliedCapRate*100).toFixed(1)}%`);
-    if (o.requiredReturn) parts.push(`Required Return (WACC from factors): ${(o.requiredReturn*100).toFixed(1)}%`);
+    if (o.impliedCapRate) parts.push(`Implied Cap Rate: ${fmt(Number(o.impliedCapRate)*100)}%`);
+    if (o.requiredReturn) parts.push(`Required Return (WACC from factors): ${fmt(Number(o.requiredReturn)*100)}%`);
   }
 
   // Budget Results
@@ -249,7 +257,7 @@ function buildDealContext(dealRow: any, uw: any, rec: any, mc: any, factor: any,
     const o = budget.output as any;
     parts.push(`\n=== BUDGET ENGINE ===`);
     parts.push(`Status: ${o.overallStatus}`);
-    if (o.varianceToCurrent) parts.push(`Variance: ${(o.varianceToCurrent*100).toFixed(1)}%`);
+    if (o.varianceToCurrent) parts.push(`Variance: ${fmt(Number(o.varianceToCurrent)*100)}%`);
     if (o.alerts?.length) parts.push(`Alerts: ${o.alerts.join('; ')}`);
   }
 
