@@ -19,10 +19,12 @@ export function getDb(): PostgresJsDatabase {
   }
 
   const isSupabase = databaseUrl.includes('supabase.co');
+  const isPooler = databaseUrl.includes('pooler.supabase.com');
   const databaseSchema = process.env.DATABASE_SCHEMA || '';
 
   cachedSql = postgres(databaseUrl, {
     ...(isSupabase ? { ssl: 'require' } : {}),
+    ...(isPooler ? { prepare: false } : {}), // pooler transaction mode doesn't support prepared statements
     ...(databaseSchema
       ? { connection: { search_path: databaseSchema } }
       : {}),
