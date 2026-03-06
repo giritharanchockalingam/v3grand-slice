@@ -1,5 +1,9 @@
 // ─── Drizzle ORM Schema (Vertical Slice) ───────────────────────────
-import { pgTable, uuid, varchar, integer, jsonb, timestamp, uniqueIndex, index, boolean, decimal } from 'drizzle-orm/pg-core';
+import { pgSchema, uuid, varchar, integer, jsonb, timestamp, uniqueIndex, index, boolean, decimal } from 'drizzle-orm/pg-core';
+
+// Use explicit schema to avoid conflict with public.users on Supabase pooler
+const v3grand = pgSchema('v3grand');
+const pgTable = v3grand.table.bind(v3grand);
 
 // ── Users ──
 // G-3/F-14: Added soft delete (deletedAt) and data retention fields for DPDP/GDPR compliance
