@@ -16,12 +16,14 @@ test.describe('Full Deal Flow (Integration)', () => {
 
     // Step 3: Click through all 10 tabs, verify each loads without error
     for (const label of TAB_LABELS) {
-      // Scroll tab button into view (tabs may overflow on smaller viewports)
-      const btn = page.getByRole('button', { name: label });
-      await btn.scrollIntoViewIfNeeded({ timeout: 10_000 });
-      await btn.click({ timeout: 15_000 });
+      // Ensure the page is stable and tab bar is present before clicking
+      await expect(page.getByRole('heading', { name: DEAL_NAME })).toBeVisible({ timeout: 15_000 });
+      // Use locator with text match — more resilient to icon content in accessible name
+      const btn = page.locator('button', { hasText: label });
+      await expect(btn.first()).toBeVisible({ timeout: 15_000 });
+      await btn.first().click({ timeout: 15_000 });
       // Brief wait for tab content to begin loading
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(1000);
       // Verify no API error banner
       const errorEl = page.getByText(/^API Error|500 Internal|Failed to load/i);
       const hasRealError = await errorEl.isVisible().catch(() => false);
