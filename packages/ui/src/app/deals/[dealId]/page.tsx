@@ -99,18 +99,18 @@ export default function DealDashboardPage() {
           </div>
         </div>
         {/* Skeleton Metrics */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="elevated-card p-4">
+            <div key={i} className="elevated-card p-3 md:p-4">
               <div className="shimmer h-3 w-20 mb-3" />
               <div className="shimmer h-8 w-16" />
             </div>
           ))}
         </div>
         {/* Skeleton Charts */}
-        <div className="grid grid-cols-2 gap-6">
-          <div className="elevated-card p-6"><div className="shimmer h-48 w-full" /></div>
-          <div className="elevated-card p-6"><div className="shimmer h-48 w-full" /></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+          <div className="elevated-card p-4 lg:p-6"><div className="shimmer h-48 w-full" /></div>
+          <div className="elevated-card p-4 lg:p-6"><div className="shimmer h-48 w-full" /></div>
         </div>
       </div>
     );
@@ -146,10 +146,10 @@ export default function DealDashboardPage() {
       <div className="elevated-card overflow-hidden">
         {/* Gradient accent */}
         <div className="h-1 bg-gradient-to-r from-brand-600 via-brand-400 to-teal-300" />
-        <div className="p-6">
-          <div className="flex items-start justify-between mb-5">
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-surface-900 tracking-tight">{deal.name}</h1>
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-surface-900 tracking-tight truncate">{deal.name}</h1>
               <div className="flex gap-2 mt-3 flex-wrap">
                 <span className="badge-brand">{deal.assetClass}</span>
                 <span className="badge bg-brand-50/50 text-brand-600 border border-brand-200/30">
@@ -200,7 +200,7 @@ export default function DealDashboardPage() {
 
       {/* ── Tab Bar ── */}
       <div className="elevated-card rounded-b-none border-b-0">
-        <div className="flex gap-0 overflow-x-auto px-2">
+        <div className="flex gap-0 overflow-x-auto px-1 sm:px-2 -mx-0 scrollbar-hide">
           {TABS.filter(t => !t.requiresConstruction || showConstruction).map((t) => (
             <button
               key={t.key}
@@ -230,15 +230,15 @@ export default function DealDashboardPage() {
       {tab === 'overview' && (
         <div className="space-y-6 animate-slide-up">
           {/* Recommendation + Quick Metrics */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
             <div className="xl:col-span-1">
               <RecommendationCard recommendation={latestRecommendation} decisionInsight={decisionInsight} />
             </div>
             <div className="xl:col-span-2">
               {latestProforma && (
-                <div className="elevated-card p-6">
+                <div className="elevated-card p-4 sm:p-6">
                   <h3 className="section-title mb-4">Key Metrics (Base Scenario)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
                     <div className="metric-card">
                       <p className="stat-label mb-1.5">IRR (Base)</p>
                       <p className="stat-value text-brand-700">{(latestProforma.irr * 100).toFixed(1)}%</p>
@@ -265,11 +265,11 @@ export default function DealDashboardPage() {
           <MetricsStrip proforma={latestProforma} />
 
           {/* Main Charts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="elevated-card p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="elevated-card p-4 sm:p-6">
               <RevenueChart years={latestProforma?.years ?? []} />
             </div>
-            <div className="elevated-card p-6">
+            <div className="elevated-card p-4 sm:p-6">
               <MCHistogramChart
                 distribution={latestMC?.histogram?.map((h: any) => ({
                   bin: ((h.bucketMin + h.bucketMax) / 2),
@@ -285,8 +285,8 @@ export default function DealDashboardPage() {
           </div>
 
           {/* More Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="elevated-card p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="elevated-card p-4 sm:p-6">
               <SCurveChart
                 data={latestSCurve?.cumulativeCashflows
                   ? latestSCurve.cumulativeCashflows.map((cum: number, i: number) => ({
@@ -302,7 +302,7 @@ export default function DealDashboardPage() {
                 }
               />
             </div>
-            <div className="elevated-card p-6">
+            <div className="elevated-card p-4 sm:p-6">
               <FactorScorePanel
                 globalScore={(latestFactor?.domainScores?.global?.score ?? latestFactor?.domains?.global?.score) != null ? (latestFactor?.domainScores?.global?.score ?? latestFactor?.domains?.global?.score)! * 20 : undefined}
                 localScore={(latestFactor?.domainScores?.local?.score ?? latestFactor?.domains?.local?.score) != null ? (latestFactor?.domainScores?.local?.score ?? latestFactor?.domains?.local?.score)! * 20 : undefined}
@@ -323,11 +323,11 @@ export default function DealDashboardPage() {
           )}
 
           {/* Recommendation History + Alert Feed */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="elevated-card p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+            <div className="elevated-card p-4 sm:p-6">
               <RecommendationHistory history={recommendationHistory} />
             </div>
-            <div className="elevated-card p-6">
+            <div className="elevated-card p-4 sm:p-6">
               <AlertFeed alerts={recentEvents?.map((e: any) => ({
                 id: e.id,
                 message: e.description,
@@ -340,9 +340,9 @@ export default function DealDashboardPage() {
 
           {/* Construction Progress */}
           {constructionProgress && (
-            <div className="elevated-card p-6">
+            <div className="elevated-card p-4 sm:p-6">
               <h3 className="section-title mb-4">Construction Progress</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
                 <div className="metric-card">
                   <p className="stat-label">Completion</p>
                   <p className="stat-value text-brand-700">{constructionProgress.completionPct?.toFixed(0) ?? 0}%</p>

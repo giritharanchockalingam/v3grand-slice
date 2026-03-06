@@ -101,11 +101,11 @@ export default function AgentsPage() {
           {Array.from({ length: 4 }).map((_, categoryIdx) => (
             <div key={categoryIdx} className="space-y-4">
               <div className="h-8 w-48 bg-surface-200 rounded animate-pulse" />
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
                     key={i}
-                    className="rounded-2xl border border-surface-200 bg-surface-50 p-6 h-64 animate-pulse"
+                    className="rounded-2xl border border-surface-200 bg-surface-50 p-4 sm:p-6 h-48 sm:h-64 animate-pulse"
                   />
                 ))}
               </div>
@@ -124,7 +124,7 @@ export default function AgentsPage() {
 
               {/* Category Grid - 4 columns */}
               {category.items.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                   {category.items.map((agent) => (
                     <AgentCard key={agent.id} agent={agent} />
                   ))}

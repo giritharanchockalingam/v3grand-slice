@@ -23,6 +23,7 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
+    overflow-x: hidden;
   }
 
   body {
@@ -30,6 +31,8 @@
     background-image: radial-gradient(at 80% 10%, rgba(20, 184, 166, 0.04) 0, transparent 50%),
                       radial-gradient(at 20% 90%, rgba(59, 130, 246, 0.03) 0, transparent 50%);
     background-attachment: fixed;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Scrollbar Styling */
@@ -82,9 +85,9 @@
     @apply shadow-card-hover border-surface-300/80 -translate-y-0.5;
   }
 
-  /* Metric Card */
+  /* Metric Card — responsive padding */
   .metric-card {
-    @apply bg-gradient-to-br from-white to-surface-50 rounded-xl border border-surface-200/60 p-4;
+    @apply bg-gradient-to-br from-white to-surface-50 rounded-xl border border-surface-200/60 p-3 sm:p-4;
     transition: all 0.2s ease;
   }
   .metric-card:hover {
@@ -138,10 +141,11 @@
     @apply badge bg-surface-100 text-surface-600 border border-surface-200/50;
   }
 
-  /* Tab */
+  /* Tab — touch-friendly with responsive sizing */
   .tab-item {
-    @apply px-4 py-3 text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap
+    @apply px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap
            border-transparent text-surface-500 hover:text-surface-700 hover:border-surface-300;
+    min-height: 44px; /* Apple HIG touch target */
   }
   .tab-item-active {
     @apply tab-item border-brand-500 text-brand-700 font-semibold;
@@ -175,12 +179,12 @@
     @apply bg-gradient-to-r from-surface-200 via-surface-100 to-surface-200 bg-[length:200%_100%] animate-shimmer rounded-lg;
   }
 
-  /* Stat Value */
+  /* Stat Value — responsive sizing */
   .stat-value {
-    @apply text-2xl font-bold tracking-tight;
+    @apply text-xl sm:text-2xl font-bold tracking-tight;
   }
   .stat-label {
-    @apply text-xs font-medium text-surface-500 uppercase tracking-wider;
+    @apply text-2xs sm:text-xs font-medium text-surface-500 uppercase tracking-wider;
   }
 
   /* Premium Metric Value */
@@ -255,5 +259,22 @@
   }
   .border-gradient {
     border-image: linear-gradient(135deg, #0d9488, #14b8a6, #2dd4bf) 1;
+  }
+
+  /* Hide scrollbar for horizontal tab scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Line clamp utility */
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 }

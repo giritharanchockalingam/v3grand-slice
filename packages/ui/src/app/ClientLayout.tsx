@@ -89,7 +89,7 @@ function AgentsDropdown() {
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-0 w-96 bg-surface-900 border border-white/10 rounded-xl shadow-glass-lg backdrop-blur-xl z-50">
+        <div className="absolute top-full left-0 mt-0 w-80 lg:w-96 max-w-[90vw] bg-surface-900 border border-white/10 rounded-xl shadow-glass-lg backdrop-blur-xl z-50">
           <div className="max-h-96 overflow-y-auto dark-scrollbar">
             {NAV_AGENT_CATEGORIES.map((category, idx) => (
               <div key={category.name}>

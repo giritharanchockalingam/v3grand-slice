@@ -75,10 +75,10 @@ export function AgentChat({
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 min-h-0 mb-4">
         {/* Empty state with suggested prompts */}
         {messages.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-8">
-            <span className="text-5xl mb-4">{agentIcon}</span>
-            <h3 className="text-xl font-bold text-surface-900 mb-2">{agentName}</h3>
-            <p className="text-sm text-surface-500 mb-6 max-w-md">
+          <div className="flex flex-col items-center justify-center h-full text-center px-2 sm:px-8">
+            <span className="text-4xl sm:text-5xl mb-3 sm:mb-4">{agentIcon}</span>
+            <h3 className="text-lg sm:text-xl font-bold text-surface-900 mb-1.5 sm:mb-2">{agentName}</h3>
+            <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6 max-w-md">
               Ask me anything about my domain. I have access to your portfolio data and analytical tools.
             </p>
             <div className="grid gap-2 w-full max-w-lg">
@@ -87,9 +87,9 @@ export function AgentChat({
                   key={i}
                   type="button"
                   onClick={() => onSend(prompt)}
-                  className="text-left rounded-xl border border-surface-200 bg-surface-50 px-4 py-3 text-sm text-surface-700 hover:bg-white hover:border-brand-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all duration-150"
+                  className="text-left rounded-xl border border-surface-200 bg-surface-50 px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm text-surface-700 hover:bg-white hover:border-brand-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-400 transition-all duration-150"
                 >
-                  <span className="text-surface-400 mr-2">→</span>
+                  <span className="text-surface-400 mr-1.5 sm:mr-2">→</span>
                   {prompt}
                 </button>
               ))}
@@ -173,15 +173,18 @@ export function AgentChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 rounded-xl border border-surface-300 bg-white px-4 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+          className="flex-1 min-w-0 rounded-xl border border-surface-300 bg-white px-3 sm:px-4 py-2.5 text-sm text-surface-900 placeholder:text-surface-400 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           disabled={loading}
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 transition-colors"
+          className="rounded-xl bg-brand-600 px-3 sm:px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 transition-colors"
         >
-          Send
+          <span className="hidden sm:inline">Send</span>
+          <svg className="w-4 h-4 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+          </svg>
         </button>
       </form>
     </div>

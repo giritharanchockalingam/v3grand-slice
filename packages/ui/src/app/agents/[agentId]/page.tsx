@@ -77,9 +77,9 @@ export default function AgentWorkspacePage() {
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-140px)]">
-      {/* Left sidebar: Agent info */}
-      <div className="w-72 flex-shrink-0 space-y-4">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-auto lg:h-[calc(100vh-140px)]">
+      {/* Sidebar: Agent info — horizontal on mobile, vertical sidebar on desktop */}
+      <div className="w-full lg:w-72 flex-shrink-0 space-y-3 lg:space-y-4">
         {/* Back link */}
         <Link
           href="/agents"
@@ -91,21 +91,26 @@ export default function AgentWorkspacePage() {
           All Agents
         </Link>
 
-        {/* Agent card */}
-        <div className="rounded-2xl border border-surface-200 bg-white p-5 space-y-4">
+        {/* Agent card — compact on mobile */}
+        <div className="rounded-2xl border border-surface-200 bg-white p-4 lg:p-5 space-y-3 lg:space-y-4">
           <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${agent.color} flex items-center justify-center text-2xl shadow-sm`}>
+            <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-xl bg-gradient-to-br ${agent.color} flex items-center justify-center text-xl lg:text-2xl shadow-sm`}>
               {agent.icon}
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-surface-900 leading-tight">{agent.title}</h2>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base lg:text-lg font-bold text-surface-900 leading-tight truncate">{agent.title}</h2>
               <p className="text-xs font-medium text-surface-500 uppercase tracking-wide">{agent.name}</p>
             </div>
+            {/* Mobile-only status dot */}
+            <div className="lg:hidden flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs text-surface-500">Online</span>
+            </div>
           </div>
-          <p className="text-sm text-surface-600 leading-relaxed">{agent.description}</p>
+          <p className="text-sm text-surface-600 leading-relaxed hidden sm:block">{agent.description}</p>
 
-          {/* Tools section */}
-          <div>
+          {/* Capabilities — hidden on small mobile, visible on sm+ */}
+          <div className="hidden sm:block">
             <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Capabilities</p>
             <div className="flex flex-wrap gap-1">
               {['Data Analysis', 'Tool Execution', 'Live Portfolio', 'Recommendations'].map((cap) => (
@@ -120,8 +125,8 @@ export default function AgentWorkspacePage() {
           </div>
         </div>
 
-        {/* Status indicator */}
-        <div className="rounded-xl border border-surface-200 bg-white p-4">
+        {/* Status indicator — desktop only (shown inline on mobile above) */}
+        <div className="hidden lg:block rounded-xl border border-surface-200 bg-white p-4">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-xs font-medium text-surface-600">Online — Claude Sonnet</span>
@@ -134,8 +139,8 @@ export default function AgentWorkspacePage() {
         </div>
       </div>
 
-      {/* Right: Chat */}
-      <div className="flex-1 min-w-0 rounded-2xl border border-surface-200 bg-white p-5">
+      {/* Chat — full width on mobile, flex-1 on desktop */}
+      <div className="flex-1 min-w-0 rounded-2xl border border-surface-200 bg-white p-3 sm:p-4 lg:p-5 min-h-[60vh] lg:min-h-0">
         <AgentChat
           messages={messages}
           loading={loading}

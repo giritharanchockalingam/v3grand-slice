@@ -210,20 +210,20 @@ export default function InvestPage() {
     <div className="min-h-screen bg-surface-950">
       <div className="max-w-3xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Analyze Your Investment</h1>
-          <p className="text-surface-400">
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Analyze Your Investment</h1>
+          <p className="text-surface-400 text-sm sm:text-base">
             Our 16 AI CFO experts need precise details to deliver institutional-grade analysis
           </p>
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center justify-center mb-10 gap-1">
+        <div className="flex items-center justify-center mb-6 sm:mb-10 gap-0.5 sm:gap-1 overflow-x-auto">
           {STEPS.map((s, i) => (
             <div key={s.id} className="flex items-center">
               <button
                 onClick={() => s.id < step && setStep(s.id)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-sm ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg transition-all text-xs sm:text-sm ${
                   s.id === step
                     ? 'bg-brand-500/20 text-brand-400 font-semibold'
                     : s.id < step
@@ -231,7 +231,7 @@ export default function InvestPage() {
                       : 'text-surface-500'
                 }`}
               >
-                <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                <span className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0 ${
                   s.id === step
                     ? 'border-brand-400 bg-brand-500/20 text-brand-400'
                     : s.id < step
@@ -243,7 +243,7 @@ export default function InvestPage() {
                 <span className="hidden sm:inline">{s.name}</span>
               </button>
               {i < STEPS.length - 1 && (
-                <div className={`w-8 h-0.5 mx-1 ${s.id < step ? 'bg-brand-400/50' : 'bg-surface-700'}`} />
+                <div className={`w-4 sm:w-8 h-0.5 mx-0.5 sm:mx-1 ${s.id < step ? 'bg-brand-400/50' : 'bg-surface-700'}`} />
               )}
             </div>
           ))}
@@ -425,18 +425,19 @@ function Step1({ input, errors = {}, update }: StepProps) {
               Hotel Star Rating
               <Tooltip text="Higher stars mean more luxury. 5-star = premium resort, 3-star = budget business hotel, 7-star = ultra-luxury." />
             </label>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {[3, 4, 5, 7].map((star) => (
                 <button
                   key={star}
                   onClick={() => update({ starRating: star })}
-                  className={`flex-1 py-3 rounded-xl border-2 text-center font-medium transition-all ${
+                  className={`py-2.5 sm:py-3 rounded-xl border-2 text-center text-sm sm:text-base font-medium transition-all ${
                     input.starRating === star
                       ? 'border-brand-400 bg-brand-500/10 text-brand-400'
                       : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
                   }`}
                 >
-                  {star === 7 ? '7★' : '★'.repeat(star)} {star}-Star
+                  <span className="sm:hidden">{star}★</span>
+                  <span className="hidden sm:inline">{star === 7 ? '7★' : '★'.repeat(star)} {star}-Star</span>
                 </button>
               ))}
             </div>
