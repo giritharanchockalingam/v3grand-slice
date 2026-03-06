@@ -64,6 +64,26 @@ export const investAnalyzeSchema = z.object({
   // Financial Context
   existingDebtCr: z.number().min(0).max(100000).optional(),
   knownRevparInr: z.number().positive().max(200000).optional(),
+
+  // Demand Segmentation
+  demandCorporatePct: z.number().min(0).max(100),
+  demandMedicalPct: z.number().min(0).max(100),
+  demandLeisurePct: z.number().min(0).max(100),
+  demandMicePct: z.number().min(0).max(100),
+
+  // Anchor Partnerships
+  hasAnchorPartnership: z.boolean(),
+  anchorType: z.enum(['medical', 'corporate', 'government', 'mixed']).optional(),
+  anchorCommittedNightsPerMonth: z.number().int().min(0).max(10000).optional(),
+
+  // Brand Affiliation
+  brandStrategy: z.enum(['independent', 'franchise', 'management_contract', 'undecided']),
+  preferredBrand: safeString(100).optional(),
+
+  // Partner Equity Structure
+  leadInvestorPct: z.number().min(0).max(100).optional(),
+  partner2Pct: z.number().min(0).max(100).optional(),
+  partner3Pct: z.number().min(0).max(100).optional(),
 });
 
 export const agentChatSchema = z.object({

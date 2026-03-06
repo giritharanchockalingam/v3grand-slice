@@ -68,6 +68,20 @@ const MARKET_SEGMENTS = [
   { value: 'mixed' as const, label: 'Mixed / Multi-Segment', icon: '🌐' },
 ];
 
+const BRAND_STRATEGIES = [
+  { value: 'independent' as const, label: 'Independent', icon: '🏨', desc: 'Full control, no franchise fees' },
+  { value: 'franchise' as const, label: 'Franchise', icon: '🏷️', desc: 'Brand name + distribution, 8-12% fee' },
+  { value: 'management_contract' as const, label: 'Managed', icon: '🤝', desc: 'Operator runs it, ~3% base + 10% incentive' },
+  { value: 'undecided' as const, label: 'Undecided', icon: '🤔', desc: 'Agents will analyze both options' },
+];
+
+const ANCHOR_TYPES = [
+  { value: 'medical' as const, label: 'Medical / Hospital', icon: '🏥' },
+  { value: 'corporate' as const, label: 'Corporate MoU', icon: '💼' },
+  { value: 'government' as const, label: 'Government', icon: '🏛️' },
+  { value: 'mixed' as const, label: 'Mixed Anchors', icon: '🌐' },
+];
+
 const DEFAULT_INPUT: InvestWizardInput = {
   propertyName: '',
   city: '',
@@ -99,6 +113,22 @@ const DEFAULT_INPUT: InvestWizardInput = {
   // Financial
   existingDebtCr: undefined,
   knownRevparInr: undefined,
+  // Demand Segmentation
+  demandCorporatePct: 35,
+  demandMedicalPct: 10,
+  demandLeisurePct: 35,
+  demandMicePct: 20,
+  // Anchor Partnerships
+  hasAnchorPartnership: false,
+  anchorType: undefined,
+  anchorCommittedNightsPerMonth: undefined,
+  // Brand Affiliation
+  brandStrategy: 'undecided',
+  preferredBrand: undefined,
+  // Partner Equity
+  leadInvestorPct: undefined,
+  partner2Pct: undefined,
+  partner3Pct: undefined,
 };
 
 /* ─── Main Page ─── */
@@ -629,6 +659,50 @@ function Step1({ input, errors = {}, update }: StepProps) {
           </div>
         </div>
       </div>
+
+      {/* ── Section D: Demand Segmentation ── */}
+      <div>
+        <SectionHeader title="Demand Segmentation" subtitle="How demand is split across guest types — must total 100%" />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { key: 'demandCorporatePct' as const, label: 'Corporate', icon: '💼', value: input.demandCorporatePct },
+              { key: 'demandMedicalPct' as const, label: 'Medical Tourism', icon: '🏥', value: input.demandMedicalPct },
+              { key: 'demandLeisurePct' as const, label: 'Leisure / Tourist', icon: '🏖️', value: input.demandLeisurePct },
+              { key: 'demandMicePct' as const, label: 'MICE / Events', icon: '🎪', value: input.demandMicePct },
+            ].map((seg) => (
+              <div key={seg.key}>
+                <label className="block text-xs font-medium text-surface-300 mb-1">
+                  <span className="mr-1">{seg.icon}</span> {seg.label}
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={seg.value}
+                    onChange={(e) => update({ [seg.key]: Number(e.target.value) })}
+                    className="flex-1 accent-brand-400"
+                  />
+                  <span className="text-white font-semibold text-sm w-10 text-right">{seg.value}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Total indicator */}
+          {(() => {
+            const total = input.demandCorporatePct + input.demandMedicalPct + input.demandLeisurePct + input.demandMicePct;
+            return (
+              <div className={`text-xs font-medium px-3 py-1.5 rounded-lg inline-block ${
+                total === 100 ? 'text-green-400 bg-green-500/10' : 'text-amber-400 bg-amber-500/10'
+              }`}>
+                Total: {total}% {total !== 100 && `(should be 100%)`}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
     </div>
   );
 }
@@ -724,6 +798,73 @@ function Step2({ input, errors = {}, update }: StepProps) {
         </div>
       </div>
 
+      {/* Partner Equity Split (if partnership) */}
+      {input.partnershipType === 'partnership' && (
+        <div className="bg-surface-800/30 border border-surface-700 rounded-xl p-4 space-y-4">
+          <h4 className="text-sm font-semibold text-surface-200">
+            Partner Equity Split
+            <Tooltip text="How ownership is divided. Common: 50/25/25 or 60/40. Must total 100%." />
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-surface-300 mb-1">Lead Investor (You)</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="10"
+                  max="90"
+                  step="5"
+                  value={input.leadInvestorPct ?? 50}
+                  onChange={(e) => update({ leadInvestorPct: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold text-sm w-10 text-right">{input.leadInvestorPct ?? 50}%</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-300 mb-1">Partner 2</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="5"
+                  value={input.partner2Pct ?? 25}
+                  onChange={(e) => update({ partner2Pct: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold text-sm w-10 text-right">{input.partner2Pct ?? 25}%</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-300 mb-1">Partner 3</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="5"
+                  value={input.partner3Pct ?? 25}
+                  onChange={(e) => update({ partner3Pct: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold text-sm w-10 text-right">{input.partner3Pct ?? 25}%</span>
+              </div>
+            </div>
+          </div>
+          {(() => {
+            const total = (input.leadInvestorPct ?? 50) + (input.partner2Pct ?? 25) + (input.partner3Pct ?? 25);
+            return (
+              <div className={`text-xs font-medium px-3 py-1.5 rounded-lg inline-block ${
+                total === 100 ? 'text-green-400 bg-green-500/10' : 'text-amber-400 bg-amber-500/10'
+              }`}>
+                Total: {total}% {total !== 100 && `(should be 100%)`}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Timeline */}
       <div>
         <label className="block text-sm font-medium text-surface-200 mb-1.5">
@@ -745,6 +886,123 @@ function Step2({ input, errors = {}, update }: StepProps) {
         <div className="flex justify-between text-xs text-surface-500 mt-1">
           <span>3 years</span><span>15 years</span>
         </div>
+      </div>
+
+      {/* ── Anchor Partnerships ── */}
+      <div>
+        <SectionHeader title="Anchor Partnerships" subtitle="Pre-committed demand from institutional partners dramatically reduces risk" />
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => update({ hasAnchorPartnership: true })}
+              className={`p-3 rounded-xl border-2 text-left transition-all ${
+                input.hasAnchorPartnership
+                  ? 'border-brand-400 bg-brand-500/10'
+                  : 'border-surface-600 bg-surface-800 hover:border-surface-500'
+              }`}
+            >
+              <span className="text-xl">🤝</span>
+              <div className={`text-sm font-medium mt-1 ${input.hasAnchorPartnership ? 'text-brand-400' : 'text-white'}`}>
+                Yes, have anchors
+              </div>
+              <div className="text-xs text-surface-400">Hospital MoUs, corporate contracts</div>
+            </button>
+            <button
+              onClick={() => update({ hasAnchorPartnership: false, anchorType: undefined, anchorCommittedNightsPerMonth: undefined })}
+              className={`p-3 rounded-xl border-2 text-left transition-all ${
+                !input.hasAnchorPartnership
+                  ? 'border-brand-400 bg-brand-500/10'
+                  : 'border-surface-600 bg-surface-800 hover:border-surface-500'
+              }`}
+            >
+              <span className="text-xl">📊</span>
+              <div className={`text-sm font-medium mt-1 ${!input.hasAnchorPartnership ? 'text-brand-400' : 'text-white'}`}>
+                No anchors yet
+              </div>
+              <div className="text-xs text-surface-400">Agents will assess open-market demand</div>
+            </button>
+          </div>
+
+          {input.hasAnchorPartnership && (
+            <div className="bg-surface-800/30 border border-surface-700 rounded-xl p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-surface-200 mb-1.5">Anchor Type</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {ANCHOR_TYPES.map((at) => (
+                    <button
+                      key={at.value}
+                      onClick={() => update({ anchorType: at.value })}
+                      className={`py-2 px-3 rounded-xl border-2 text-center text-xs font-medium transition-all ${
+                        input.anchorType === at.value
+                          ? 'border-brand-400 bg-brand-500/10 text-brand-400'
+                          : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
+                      }`}
+                    >
+                      <span className="mr-1">{at.icon}</span> {at.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                  Committed Room-Nights / Month
+                  <Tooltip text="How many guaranteed room-nights per month from anchor MoUs? e.g. 160 nights = ~5 rooms/night average." />
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0"
+                    max="500"
+                    step="10"
+                    value={input.anchorCommittedNightsPerMonth ?? 0}
+                    onChange={(e) => update({ anchorCommittedNightsPerMonth: Number(e.target.value) || undefined })}
+                    className="flex-1 accent-brand-400"
+                  />
+                  <span className="text-white font-semibold w-20 text-right">{input.anchorCommittedNightsPerMonth ?? 0}/mo</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Brand Affiliation ── */}
+      <div>
+        <SectionHeader title="Brand Affiliation" subtitle="Independent vs franchise vs management contract — affects fees, occupancy, and exit value" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {BRAND_STRATEGIES.map((bs) => (
+            <button
+              key={bs.value}
+              onClick={() => update({ brandStrategy: bs.value, preferredBrand: bs.value === 'independent' ? undefined : input.preferredBrand })}
+              className={`p-3 rounded-xl border-2 text-left transition-all ${
+                input.brandStrategy === bs.value
+                  ? 'border-brand-400 bg-brand-500/10'
+                  : 'border-surface-600 bg-surface-800 hover:border-surface-500'
+              }`}
+            >
+              <span className="text-xl">{bs.icon}</span>
+              <div className={`text-sm font-medium mt-1 ${input.brandStrategy === bs.value ? 'text-brand-400' : 'text-white'}`}>
+                {bs.label}
+              </div>
+              <div className="text-xs text-surface-400 mt-0.5">{bs.desc}</div>
+            </button>
+          ))}
+        </div>
+        {(input.brandStrategy === 'franchise' || input.brandStrategy === 'management_contract') && (
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Preferred Brand
+              <span className="text-xs text-surface-500 ml-1">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={input.preferredBrand ?? ''}
+              onChange={(e) => update({ preferredBrand: e.target.value || undefined })}
+              placeholder="e.g. IHG, Marriott, Taj, Wyndham"
+              className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+            />
+          </div>
+        )}
       </div>
 
       {/* Conditional: Existing Debt (acquisitions) */}
@@ -890,6 +1148,8 @@ function Step4({ input }: { input: InvestWizardInput }) {
   const cityTierLabel = CITY_TIERS.find((t) => t.value === input.cityTier)?.label ?? input.cityTier;
   const marketSegLabel = MARKET_SEGMENTS.find((s) => s.value === input.marketSegment)?.label ?? input.marketSegment;
 
+  const brandLabel = BRAND_STRATEGIES.find((b) => b.value === input.brandStrategy)?.label ?? input.brandStrategy;
+
   const sections = [
     {
       title: 'Location & Property',
@@ -909,22 +1169,28 @@ function Step4({ input }: { input: InvestWizardInput }) {
       ],
     },
     {
-      title: 'Market Context',
+      title: 'Market & Demand',
       icon: '📊',
       items: [
         { label: 'City Tier', value: cityTierLabel },
         { label: 'Market Segment', value: marketSegLabel },
         ...(input.competingHotelsNearby != null ? [{ label: 'Competing Hotels', value: `~${input.competingHotelsNearby} within 5km` }] : []),
+        { label: 'Demand Mix', value: `Corporate ${input.demandCorporatePct}% · Medical ${input.demandMedicalPct}% · Leisure ${input.demandLeisurePct}% · MICE ${input.demandMicePct}%` },
       ],
     },
     {
-      title: 'Investment',
+      title: 'Investment & Strategy',
       icon: '💰',
       items: [
         { label: 'Amount', value: `₹${input.investmentAmountCr} Crore` },
         { label: 'Project Type', value: input.dealType === 'new_build' ? 'New Build' : input.dealType === 'renovation' ? 'Renovation' : 'Acquisition' },
         { label: 'Structure', value: input.partnershipType === 'solo' ? 'Solo Investment' : 'Partnership' },
+        ...(input.partnershipType === 'partnership' ? [{ label: 'Equity Split', value: `${input.leadInvestorPct ?? 50}/${input.partner2Pct ?? 25}/${input.partner3Pct ?? 25}` }] : []),
         { label: 'Timeline', value: `${input.timelineYears} years` },
+        { label: 'Brand Strategy', value: `${brandLabel}${input.preferredBrand ? ` (${input.preferredBrand})` : ''}` },
+        ...(input.hasAnchorPartnership ? [
+          { label: 'Anchor Partners', value: `${ANCHOR_TYPES.find((a) => a.value === input.anchorType)?.label ?? 'Yes'} — ${input.anchorCommittedNightsPerMonth ?? 0} nights/mo` },
+        ] : [{ label: 'Anchor Partners', value: 'None — open market' }]),
         ...(input.existingDebtCr ? [{ label: 'Existing Debt', value: `₹${input.existingDebtCr} Crore` }] : []),
         ...(input.knownRevparInr ? [{ label: 'Known RevPAR', value: `₹${input.knownRevparInr}/night` }] : []),
       ],

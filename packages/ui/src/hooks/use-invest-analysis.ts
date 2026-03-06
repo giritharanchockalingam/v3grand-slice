@@ -38,6 +38,26 @@ export interface InvestWizardInput {
   // Financial Context
   existingDebtCr?: number;
   knownRevparInr?: number;
+
+  // Demand Segmentation (from presentation)
+  demandCorporatePct: number;    // % of demand from corporate
+  demandMedicalPct: number;      // % from medical tourism
+  demandLeisurePct: number;      // % from leisure/tourist
+  demandMicePct: number;         // % from MICE (meetings/conferences)
+
+  // Anchor Partnerships
+  hasAnchorPartnership: boolean;
+  anchorType?: 'medical' | 'corporate' | 'government' | 'mixed';
+  anchorCommittedNightsPerMonth?: number;  // Guaranteed room nights/month from anchor MoUs
+
+  // Brand Affiliation
+  brandStrategy: 'independent' | 'franchise' | 'management_contract' | 'undecided';
+  preferredBrand?: string;       // e.g. 'IHG', 'Marriott', 'Taj'
+
+  // Partner Equity Structure (if partnership)
+  leadInvestorPct?: number;      // Lead investor equity %
+  partner2Pct?: number;          // Partner 2 equity %
+  partner3Pct?: number;          // Partner 3 equity %
 }
 
 /** Single agent result */

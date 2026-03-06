@@ -51,6 +51,22 @@ interface InvestWizardInput {
   // Financial
   existingDebtCr?: number;
   knownRevparInr?: number;
+  // Demand Segmentation
+  demandCorporatePct: number;
+  demandMedicalPct: number;
+  demandLeisurePct: number;
+  demandMicePct: number;
+  // Anchor Partnerships
+  hasAnchorPartnership: boolean;
+  anchorType?: 'medical' | 'corporate' | 'government' | 'mixed';
+  anchorCommittedNightsPerMonth?: number;
+  // Brand Affiliation
+  brandStrategy: 'independent' | 'franchise' | 'management_contract' | 'undecided';
+  preferredBrand?: string;
+  // Partner Equity
+  leadInvestorPct?: number;
+  partner2Pct?: number;
+  partner3Pct?: number;
 }
 
 /** Data provenance for an agent's analysis */
@@ -206,17 +222,50 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
       nearestAirport: input.nearestAirport,
       distanceToAirportKm: input.distanceToAirportKm,
       knownRevpar: input.knownRevparInr,
+      demandSegmentation: {
+        corporate: input.demandCorporatePct,
+        medical: input.demandMedicalPct,
+        leisure: input.demandLeisurePct,
+        mice: input.demandMicePct,
+      },
+      brandStrategy: input.brandStrategy,
+      preferredBrand: input.preferredBrand,
+      hasAnchorPartnership: input.hasAnchorPartnership,
+      anchorType: input.anchorType,
+      anchorCommittedNightsPerMonth: input.anchorCommittedNightsPerMonth,
     },
     partnership: {
       structure: input.partnershipType === 'solo' ? 'sole' : 'jv',
-      partners: [{ id: 'lead', name: userEmail, equityPct: 1, role: 'lead-investor', commitmentCr: input.investmentAmountCr }],
+      partners: input.partnershipType === 'solo'
+        ? [{ id: 'lead', name: userEmail, equityPct: 1, role: 'lead-investor', commitmentCr: input.investmentAmountCr }]
+        : [
+            { id: 'lead', name: userEmail, equityPct: (input.leadInvestorPct ?? 50) / 100, role: 'lead-investor', commitmentCr: Math.round(input.investmentAmountCr * (input.leadInvestorPct ?? 50) / 100) },
+            ...(input.partner2Pct && input.partner2Pct > 0 ? [{ id: 'partner2', name: 'Partner 2', equityPct: input.partner2Pct / 100, role: 'co-investor' as const, commitmentCr: Math.round(input.investmentAmountCr * input.partner2Pct / 100) }] : []),
+            ...(input.partner3Pct && input.partner3Pct > 0 ? [{ id: 'partner3', name: 'Partner 3', equityPct: input.partner3Pct / 100, role: 'co-investor' as const, commitmentCr: Math.round(input.investmentAmountCr * input.partner3Pct / 100) }] : []),
+          ],
+    },
+    // Anchor partnership context for agents
+    anchorPartnership: input.hasAnchorPartnership ? {
+      type: input.anchorType,
+      committedNightsPerMonth: input.anchorCommittedNightsPerMonth || 0,
+      // Guaranteed revenue from anchors (as % of total room-nights)
+      guaranteedOccupancyPct: input.anchorCommittedNightsPerMonth
+        ? Math.round((input.anchorCommittedNightsPerMonth / (input.roomCount * 30)) * 100)
+        : 0,
+    } : null,
+    // Brand affiliation strategy
+    brandAffiliation: {
+      strategy: input.brandStrategy,
+      preferredBrand: input.preferredBrand,
+      // Fee estimates for agents to validate
+      estimatedFeeLeakagePct: input.brandStrategy === 'franchise' ? 0.10 : input.brandStrategy === 'management_contract' ? 0.13 : 0,
     },
     marketAssumptions: {
       segments: [
-        { name: 'Domestic Business', pctMix: 0.35, adrPremium: 1.0, seasonality: [1,1,1,0.8,0.7,0.6,0.6,0.7,0.8,1,1.2,1.3] },
-        { name: 'Domestic Leisure', pctMix: 0.30, adrPremium: 1.1, seasonality: [1.2,1.1,0.9,0.7,0.5,0.5,0.6,0.7,0.9,1.1,1.3,1.4] },
-        { name: 'Corporate Events', pctMix: 0.20, adrPremium: 0.9, seasonality: [1,1,1,1,0.8,0.6,0.6,0.8,1,1,1.2,1.2] },
-        { name: 'International', pctMix: 0.15, adrPremium: 1.4, seasonality: [1.3,1.2,1,0.7,0.5,0.4,0.4,0.6,0.8,1.1,1.3,1.5] },
+        { name: 'Corporate', pctMix: input.demandCorporatePct / 100, adrPremium: 1.0, seasonality: [1,1,1,0.8,0.7,0.6,0.6,0.7,0.8,1,1.2,1.3] },
+        { name: 'Medical Tourism', pctMix: input.demandMedicalPct / 100, adrPremium: 0.9, seasonality: [1,1,1,1,1,0.9,0.9,1,1,1,1,1] },
+        { name: 'Leisure', pctMix: input.demandLeisurePct / 100, adrPremium: 1.1, seasonality: [1.2,1.1,0.9,0.7,0.5,0.5,0.6,0.7,0.9,1.1,1.3,1.4] },
+        { name: 'MICE / Events', pctMix: input.demandMicePct / 100, adrPremium: 0.85, seasonality: [1,1,1,1,0.8,0.6,0.6,0.8,1,1,1.2,1.2] },
       ],
       occupancyRamp,
       adrBase,
@@ -524,72 +573,86 @@ export async function POST(request: Request) {
     const dealName = input.propertyName;
     const city = input.city;
 
+    // Build rich context string for agents
+    const brandCtx = input.brandStrategy === 'independent' ? 'Operating independently (no franchise fees).'
+      : input.brandStrategy === 'franchise' ? `Franchise model${input.preferredBrand ? ` (preferred: ${input.preferredBrand})` : ''} — ~10% fee leakage.`
+      : input.brandStrategy === 'management_contract' ? `Management contract${input.preferredBrand ? ` with ${input.preferredBrand}` : ''} — ~13% fee leakage.`
+      : 'Brand strategy undecided — analyze both independent and franchise scenarios.';
+    const anchorCtx = input.hasAnchorPartnership
+      ? `Has anchor partnerships (${input.anchorType ?? 'mixed'}) with ~${input.anchorCommittedNightsPerMonth ?? 0} committed room-nights/month.`
+      : 'No anchor partnerships — fully open-market demand.';
+    const demandCtx = `Demand mix: Corporate ${input.demandCorporatePct}%, Medical ${input.demandMedicalPct}%, Leisure ${input.demandLeisurePct}%, MICE ${input.demandMicePct}%.`;
+    const partnerCtx = input.partnershipType === 'partnership'
+      ? `JV structure: Lead ${input.leadInvestorPct ?? 50}% / P2 ${input.partner2Pct ?? 25}% / P3 ${input.partner3Pct ?? 25}%.`
+      : 'Solo investment.';
+    const richContext = `${demandCtx} ${anchorCtx} ${brandCtx} ${partnerCtx}`;
+
     const agentPrompts: Array<{ agentId: string; message: string }> = [
       // Verdict Agents
       {
         agentId: 'market-analyst',
-        message: `Analyze the market conditions for a ${input.starRating}-star hotel investment in ${city}, ${input.state}. What are the macro indicators, city-level demand signals, and overall market health? The deal is called "${dealName}".`,
+        message: `Analyze the market conditions for a ${input.starRating}-star ${input.propertyType} hotel investment in ${city}, ${input.state}. The property is ${input.distanceToAirportKm}km from ${input.nearestAirport}. ${demandCtx} ${anchorCtx} What are the macro indicators, city-level demand signals, competitive dynamics, and overall market health? The deal is called "${dealName}".`,
       },
       {
         agentId: 'deal-underwriter',
-        message: `Provide a full IC-ready analysis of the deal "${dealName}". Score all underwriting factors, run Monte Carlo simulation, and assess deal readiness. This is a ${input.starRating}-star, ${input.roomCount}-room hotel in ${city}.`,
+        message: `Provide a full IC-ready analysis of the deal "${dealName}". Score all underwriting factors, run Monte Carlo simulation, and assess deal readiness. This is a ${input.starRating}-star, ${input.roomCount}-room ${input.propertyType} hotel in ${city}. ${richContext}`,
       },
       {
         agentId: 'portfolio-risk-officer',
-        message: `Assess the portfolio risk impact of adding "${dealName}" — a ${input.starRating}-star hotel in ${city} with ₹${input.investmentAmountCr}Cr investment. Check risk concentration, run stress tests, and flag any concerns.`,
+        message: `Assess the portfolio risk impact of adding "${dealName}" — a ${input.starRating}-star hotel in ${city} with ₹${input.investmentAmountCr}Cr investment. ${partnerCtx} ${anchorCtx} Check risk concentration, run stress tests, and flag any concerns.`,
       },
       {
         agentId: 'capital-allocator',
-        message: `Evaluate the capital allocation for "${dealName}" — ₹${input.investmentAmountCr}Cr into a ${input.starRating}-star hotel in ${city}. Compare risk-adjusted returns against portfolio benchmarks and recommend whether this deployment makes sense.`,
+        message: `Evaluate the capital allocation for "${dealName}" — ₹${input.investmentAmountCr}Cr into a ${input.starRating}-star hotel in ${city}. ${partnerCtx} ${brandCtx} Compare risk-adjusted returns against portfolio benchmarks and recommend whether this deployment makes sense.`,
       },
       {
         agentId: 'compliance-auditor',
-        message: `Run a full compliance and audit check for "${dealName}". Verify hash chain integrity, SOC2 controls, audit trail completeness, and validation model status.`,
+        message: `Run a full compliance and audit check for "${dealName}". Verify hash chain integrity, SOC2 controls, audit trail completeness, and validation model status. ${partnerCtx}`,
       },
       {
         agentId: 'legal-regulatory',
-        message: `Conduct a comprehensive legal and regulatory review for "${dealName}" in ${city}, ${input.state}. Assess local zoning laws, environmental regulations, labor requirements, and any licensing concerns for hotel operations.`,
+        message: `Conduct a comprehensive legal and regulatory review for "${dealName}" in ${city}, ${input.state}. ${brandCtx} ${partnerCtx} Assess local zoning laws, environmental regulations, labor requirements, brand franchise agreements, and any licensing concerns for hotel operations.`,
       },
       {
         agentId: 'tax-strategist',
-        message: `Develop a tax optimization strategy for "${dealName}". Analyze depreciation schedules, applicable tax incentives, entity structure implications, and GST considerations for hotel investments in ${input.state}.`,
+        message: `Develop a tax optimization strategy for "${dealName}". ${partnerCtx} ${brandCtx} Analyze depreciation schedules, applicable tax incentives, entity structure implications (including JV tax efficiency), and GST considerations for hotel investments in ${input.state}.`,
       },
       {
         agentId: 'forensic-auditor',
-        message: `Perform a forensic financial audit of "${dealName}". Validate all projected assumptions, check for hidden contingencies, verify data integrity, and identify any accounting red flags in the deal model.`,
+        message: `Perform a forensic financial audit of "${dealName}". ${richContext} Validate all projected assumptions, check for hidden contingencies, verify data integrity, and identify any accounting red flags in the deal model.`,
       },
       // Enrichment Agents
       {
         agentId: 'construction-monitor',
-        message: `Analyze the construction budget and timeline for "${dealName}". This is a ${input.dealType === 'new_build' ? 'new construction' : input.dealType} project with ₹${input.investmentAmountCr}Cr investment. Check for budget variances and milestone risks.`,
+        message: `Analyze the construction budget and timeline for "${dealName}". This is a ${input.dealType === 'new_build' ? 'new construction' : input.dealType} project with ₹${input.investmentAmountCr}Cr investment. ${brandCtx} Check for budget variances, milestone risks, and brand-specific fit-out requirements.`,
       },
       {
         agentId: 'revenue-optimizer',
-        message: `Analyze revenue optimization strategies for "${dealName}". Review pricing models, revenue management tactics, segment mix optimization, and demand management to maximize ADR and occupancy.`,
+        message: `Analyze revenue optimization strategies for "${dealName}". ${demandCtx} ${anchorCtx} ${brandCtx} Review pricing models, revenue management tactics, anchor partnership revenue guarantees, segment mix optimization, and demand management to maximize ADR and occupancy.`,
       },
       {
         agentId: 'proptech-advisor',
-        message: `Evaluate proptech and technology solutions for "${dealName}". Assess property management systems, automation opportunities, guest experience tech, and operational efficiency improvements.`,
+        message: `Evaluate proptech and technology solutions for "${dealName}". ${brandCtx} Assess property management systems, automation opportunities, guest experience tech, and operational efficiency improvements. Consider brand-specific PMS requirements if applicable.`,
       },
       {
         agentId: 'insurance-protection',
-        message: `Review insurance and risk protection for "${dealName}". Recommend coverage for property, liability, loss of revenue, and other hospitality-specific insurance requirements.`,
+        message: `Review insurance and risk protection for "${dealName}". ${partnerCtx} Recommend coverage for property, liability, loss of revenue, key-person insurance for partners, and other hospitality-specific insurance requirements.`,
       },
       {
         agentId: 'esg-analyst',
-        message: `Conduct ESG analysis for "${dealName}". Evaluate sustainability practices, environmental impact, social responsibility, and governance policies for the hotel project.`,
+        message: `Conduct ESG analysis for "${dealName}". ${brandCtx} Evaluate sustainability practices, environmental impact, social responsibility, governance policies, and brand ESG compliance requirements for the hotel project.`,
       },
       {
         agentId: 'debt-structuring',
-        message: `Optimize debt structuring for "${dealName}". Recommend financing mix, terms, covenants, and refinancing strategies to maximize returns while managing leverage.`,
+        message: `Optimize debt structuring for "${dealName}". ${partnerCtx} ${anchorCtx} Recommend financing mix, terms, covenants (leveraging anchor MoU guarantees if available), and refinancing strategies to maximize returns while managing leverage.`,
       },
       {
         agentId: 'lp-relations',
-        message: `Model LP distributions and investor relations for "${dealName}". Project cash flow distributions, IRR scenarios, and create communication strategies for limited partners.`,
+        message: `Model LP distributions and investor relations for "${dealName}". ${partnerCtx} Project cash flow distributions per partner, IRR scenarios by equity tranche, and create communication strategies for all investors. Include waterfall analysis.`,
       },
       {
         agentId: 'exit-strategist',
-        message: `Develop exit strategies for "${dealName}". Analyze refinancing options, sale scenarios, recapitalization, and timing considerations for investor exit in ${input.timelineYears} years.`,
+        message: `Develop exit strategies for "${dealName}". ${brandCtx} ${partnerCtx} Analyze refinancing options, sale scenarios (including brand premium/discount), recapitalization, tag-along/drag-along considerations, and timing for investor exit in ${input.timelineYears} years.`,
       },
     ];
 
