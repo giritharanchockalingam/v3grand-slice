@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useInvestAnalysis, type InvestWizardInput, type AnalysisStatus } from '@/hooks/use-invest-analysis';
+import GoogleMapsLocationInput, { type LocationData } from '@/components/GoogleMapsLocationInput';
 
 /* ─── Constants ─── */
 const STEPS = [
-  { id: 1, name: 'Property', title: 'Tell us about your property' },
-  { id: 2, name: 'Investment', title: 'Your investment details' },
+  { id: 1, name: 'Property', title: 'Location & Property Details' },
+  { id: 2, name: 'Investment', title: 'Investment & Financing' },
   { id: 3, name: 'Expectations', title: 'What are you hoping for?' },
   { id: 4, name: 'Review', title: 'Review & analyze' },
 ];
@@ -44,6 +45,29 @@ const AGENT_PHASES = [
   { icon: '🎯', name: 'Exit Strategist', desc: 'Planning exit options...' },
 ];
 
+const PROPERTY_TYPES = [
+  { value: 'luxury_resort' as const, label: 'Luxury Resort', icon: '👑' },
+  { value: 'business_hotel' as const, label: 'Business Hotel', icon: '💼' },
+  { value: 'budget_hotel' as const, label: 'Budget Hotel', icon: '💰' },
+  { value: 'heritage' as const, label: 'Heritage', icon: '🏛️' },
+  { value: 'boutique' as const, label: 'Boutique', icon: '✨' },
+  { value: 'mixed_use' as const, label: 'Mixed Use', icon: '🔄' },
+];
+
+const CITY_TIERS = [
+  { value: 'tier1' as const, label: 'Tier 1 Metro', desc: 'Mumbai, Delhi, Bangalore...' },
+  { value: 'tier2' as const, label: 'Tier 2 City', desc: 'Jaipur, Kochi, Udaipur...' },
+  { value: 'tier3' as const, label: 'Tier 3 Emerging', desc: 'Smaller cities & towns' },
+];
+
+const MARKET_SEGMENTS = [
+  { value: 'tourist' as const, label: 'Tourist Destination', icon: '🏖️' },
+  { value: 'business' as const, label: 'Business Hub', icon: '💼' },
+  { value: 'pilgrimage' as const, label: 'Pilgrimage', icon: '🙏' },
+  { value: 'medical' as const, label: 'Medical Tourism', icon: '🏥' },
+  { value: 'mixed' as const, label: 'Mixed / Multi-Segment', icon: '🌐' },
+];
+
 const DEFAULT_INPUT: InvestWizardInput = {
   propertyName: '',
   city: '',
@@ -57,6 +81,24 @@ const DEFAULT_INPUT: InvestWizardInput = {
   returnLevel: 'moderate',
   riskComfort: 'medium',
   timelineYears: 5,
+  // Location
+  propertyAddress: '',
+  latitude: 0,
+  longitude: 0,
+  distanceToAirportKm: 0,
+  nearestAirport: '',
+  // Property Classification
+  propertyType: 'business_hotel',
+  propertyAge: undefined,
+  constructionTimelineMonths: undefined,
+  currentOccupancyPct: undefined,
+  // Market Context
+  cityTier: 'tier1',
+  marketSegment: 'business',
+  competingHotelsNearby: undefined,
+  // Financial
+  existingDebtCr: undefined,
+  knownRevparInr: undefined,
 };
 
 /* ─── Main Page ─── */
@@ -70,7 +112,6 @@ export default function InvestPage() {
   // Navigate to results when complete
   useEffect(() => {
     if (status === 'complete' && result) {
-      // Store result in sessionStorage for the results page
       sessionStorage.setItem('investResult', JSON.stringify(result));
       router.push(`/invest/results?dealId=${result.dealId}`);
     }
@@ -78,7 +119,6 @@ export default function InvestPage() {
 
   const update = (changes: Partial<InvestWizardInput>) => {
     setInput((prev) => ({ ...prev, ...changes }));
-    // Clear errors for changed fields
     const clearedErrors = { ...errors };
     Object.keys(changes).forEach((k) => delete clearedErrors[k]);
     setErrors(clearedErrors);
@@ -88,6 +128,10 @@ export default function InvestPage() {
     const newErrors: Record<string, string> = {};
     if (s === 1) {
       if (!input.propertyName.trim()) newErrors.propertyName = 'Give your property a name';
+      if (!input.propertyAddress.trim()) newErrors.propertyAddress = 'Enter the property address';
+      if (input.latitude === 0 && input.longitude === 0 && input.propertyAddress.trim()) {
+        // Allow manual address entry but warn
+      }
       if (!input.city.trim()) newErrors.city = 'Which city is it in?';
       if (!input.state) newErrors.state = 'Select the state';
     }
@@ -110,12 +154,10 @@ export default function InvestPage() {
     }
   };
 
-  // Show analyzing view
   if (status === 'analyzing') {
     return <AnalyzingView elapsedSeconds={elapsedSeconds} />;
   }
 
-  // Show error state
   if (status === 'error') {
     return (
       <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
@@ -141,7 +183,7 @@ export default function InvestPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Analyze Your Investment</h1>
           <p className="text-surface-400">
-            Answer a few simple questions and our team of AI experts will analyze everything for you
+            Our 16 AI CFO experts need precise details to deliver institutional-grade analysis
           </p>
         </div>
 
@@ -181,10 +223,10 @@ export default function InvestPage() {
         <div className="bg-surface-900 rounded-2xl border border-surface-700 p-6 sm:p-8">
           <h2 className="text-xl font-semibold text-white mb-1">{STEPS[step - 1].title}</h2>
           <p className="text-surface-400 text-sm mb-6">
-            {step === 1 && 'Basic details about the hotel property you\'re considering'}
-            {step === 2 && 'How much you plan to invest and the type of project'}
+            {step === 1 && 'Precise location and property classification powers all 16 AI agents'}
+            {step === 2 && 'Investment size, deal structure, and financing details'}
             {step === 3 && 'What kind of returns and risk level you\'re comfortable with'}
-            {step === 4 && 'Make sure everything looks right before we start the analysis'}
+            {step === 4 && 'Review everything before our 16 AI experts begin their analysis'}
           </p>
 
           {step === 1 && <Step1 input={input} errors={errors} update={update} />}
@@ -224,7 +266,7 @@ export default function InvestPage() {
   );
 }
 
-/* ─── Step Components ─── */
+/* ─── Shared Components ─── */
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
@@ -242,131 +284,359 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-4 pb-2 border-b border-surface-700/50">
+      <h3 className="text-sm font-semibold text-brand-400 uppercase tracking-wider">{title}</h3>
+      {subtitle && <p className="text-xs text-surface-500 mt-0.5">{subtitle}</p>}
+    </div>
+  );
+}
+
 interface StepProps {
   input: InvestWizardInput;
   errors?: Record<string, string>;
   update: (changes: Partial<InvestWizardInput>) => void;
 }
 
+/* ─── Step 1: Location & Property Details ─── */
 function Step1({ input, errors = {}, update }: StepProps) {
+  const handleLocationChange = (loc: LocationData) => {
+    update({
+      propertyAddress: loc.address,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      city: loc.city || input.city,
+      state: loc.state || input.state,
+      distanceToAirportKm: loc.distanceToAirportKm,
+      nearestAirport: loc.nearestAirport,
+    });
+  };
+
   return (
-    <div className="space-y-5">
-      {/* Property Name */}
+    <div className="space-y-8">
+      {/* ── Section A: Location ── */}
       <div>
-        <label className="block text-sm font-medium text-surface-200 mb-1.5">
-          Property Name
-          <Tooltip text="A name for your hotel project, e.g. 'Sunrise Beach Resort'" />
-        </label>
-        <input
-          type="text"
-          value={input.propertyName}
-          onChange={(e) => update({ propertyName: e.target.value })}
-          placeholder="e.g. My Dream Resort"
-          className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
-        />
-        <FieldError error={errors.propertyName} />
-      </div>
+        <SectionHeader title="Location" subtitle="Precise coordinates power market analysis, legal checks, and competitive research" />
+        <div className="space-y-5">
+          {/* Property Name */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Property Name
+              <Tooltip text="A name for your hotel project, e.g. 'Sunrise Beach Resort'" />
+            </label>
+            <input
+              type="text"
+              value={input.propertyName}
+              onChange={(e) => update({ propertyName: e.target.value })}
+              placeholder="e.g. The Grand Oberoi Residences"
+              className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+            />
+            <FieldError error={errors.propertyName} />
+          </div>
 
-      {/* City + State */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-surface-200 mb-1.5">City</label>
-          <input
-            type="text"
-            value={input.city}
-            onChange={(e) => update({ city: e.target.value })}
-            placeholder="e.g. Goa, Jaipur, Madurai"
-            className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+          {/* Google Maps Address */}
+          <GoogleMapsLocationInput
+            value={{
+              address: input.propertyAddress,
+              latitude: input.latitude,
+              longitude: input.longitude,
+              city: input.city,
+              state: input.state,
+              distanceToAirportKm: input.distanceToAirportKm,
+              nearestAirport: input.nearestAirport,
+            }}
+            onChange={handleLocationChange}
+            error={errors.propertyAddress}
           />
-          <FieldError error={errors.city} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-surface-200 mb-1.5">State</label>
-          <select
-            value={input.state}
-            onChange={(e) => update({ state: e.target.value })}
-            className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
-          >
-            <option value="">Select state...</option>
-            {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <FieldError error={errors.state} />
+
+          {/* City + State (pre-filled from Google Maps, still editable) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                City
+                {input.latitude !== 0 && <span className="text-xs text-surface-500 ml-1">(auto-filled)</span>}
+              </label>
+              <input
+                type="text"
+                value={input.city}
+                onChange={(e) => update({ city: e.target.value })}
+                placeholder="e.g. Goa, Jaipur, Udaipur"
+                className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+              />
+              <FieldError error={errors.city} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                State
+                {input.latitude !== 0 && <span className="text-xs text-surface-500 ml-1">(auto-filled)</span>}
+              </label>
+              <select
+                value={input.state}
+                onChange={(e) => update({ state: e.target.value })}
+                className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+              >
+                <option value="">Select state...</option>
+                {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <FieldError error={errors.state} />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Star Rating */}
+      {/* ── Section B: Property Details ── */}
       <div>
-        <label className="block text-sm font-medium text-surface-200 mb-1.5">
-          Hotel Star Rating
-          <Tooltip text="Higher stars mean more luxury. 5-star = premium resort, 3-star = budget business hotel." />
-        </label>
-        <div className="flex gap-2">
-          {[3, 4, 5].map((star) => (
-            <button
-              key={star}
-              onClick={() => update({ starRating: star })}
-              className={`flex-1 py-3 rounded-xl border-2 text-center font-medium transition-all ${
-                input.starRating === star
-                  ? 'border-brand-400 bg-brand-500/10 text-brand-400'
-                  : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
-              }`}
-            >
-              {'★'.repeat(star)} {star}-Star
-            </button>
-          ))}
+        <SectionHeader title="Property Details" subtitle="Classification and scale determine financial modeling parameters" />
+        <div className="space-y-5">
+          {/* Star Rating */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Hotel Star Rating
+              <Tooltip text="Higher stars mean more luxury. 5-star = premium resort, 3-star = budget business hotel, 7-star = ultra-luxury." />
+            </label>
+            <div className="flex gap-2">
+              {[3, 4, 5, 7].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => update({ starRating: star })}
+                  className={`flex-1 py-3 rounded-xl border-2 text-center font-medium transition-all ${
+                    input.starRating === star
+                      ? 'border-brand-400 bg-brand-500/10 text-brand-400'
+                      : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
+                  }`}
+                >
+                  {star === 7 ? '7★' : '★'.repeat(star)} {star}-Star
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Property Type */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Property Type
+              <Tooltip text="The primary positioning of the hotel determines competitive set and revenue modeling." />
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {PROPERTY_TYPES.map((pt) => (
+                <button
+                  key={pt.value}
+                  onClick={() => update({ propertyType: pt.value })}
+                  className={`py-2.5 px-3 rounded-xl border-2 text-center text-sm font-medium transition-all ${
+                    input.propertyType === pt.value
+                      ? 'border-brand-400 bg-brand-500/10 text-brand-400'
+                      : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
+                  }`}
+                >
+                  <span className="mr-1">{pt.icon}</span> {pt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Room Count + Land Area */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Number of Rooms
+                <Tooltip text="Total hotel rooms. 50-100 = small, 100-200 = mid-size, 200+ = large." />
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="20"
+                  max="500"
+                  step="10"
+                  value={input.roomCount}
+                  onChange={(e) => update({ roomCount: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold w-14 text-right">{input.roomCount}</span>
+              </div>
+              <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <span>20</span><span>500 rooms</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Land Area (acres)
+                <Tooltip text="1 acre = size of a football field. Mid-size hotel needs 2-5 acres." />
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0.5"
+                  max="20"
+                  step="0.5"
+                  value={input.landAreaAcres}
+                  onChange={(e) => update({ landAreaAcres: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold w-14 text-right">{input.landAreaAcres}</span>
+              </div>
+              <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <span>0.5</span><span>20 acres</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Conditional: Property Age (acquisition/renovation) */}
+          {(input.dealType === 'acquisition' || input.dealType === 'renovation') && (
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Property Age (years)
+                <Tooltip text="How old is the existing property? Older buildings may need more renovation budget." />
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={input.propertyAge ?? 10}
+                  onChange={(e) => update({ propertyAge: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold w-20 text-right">{input.propertyAge ?? 10} years</span>
+              </div>
+              <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <span>New</span><span>100 years</span>
+              </div>
+            </div>
+          )}
+
+          {/* Conditional: Construction Timeline (new build) */}
+          {input.dealType === 'new_build' && (
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Expected Construction Timeline (months)
+                <Tooltip text="How long from groundbreaking to opening. Typical mid-size hotel: 24-36 months." />
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="12"
+                  max="60"
+                  step="3"
+                  value={input.constructionTimelineMonths ?? 30}
+                  onChange={(e) => update({ constructionTimelineMonths: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold w-24 text-right">{input.constructionTimelineMonths ?? 30} months</span>
+              </div>
+              <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <span>12 months</span><span>60 months</span>
+              </div>
+            </div>
+          )}
+
+          {/* Conditional: Current Occupancy (existing property) */}
+          {(input.dealType === 'acquisition' || input.dealType === 'renovation') && (
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Current Occupancy Rate (%)
+                <Tooltip text="Average room occupancy over the last 12 months. Indian hotel average is ~65%." />
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={input.currentOccupancyPct ?? 65}
+                  onChange={(e) => update({ currentOccupancyPct: Number(e.target.value) })}
+                  className="flex-1 accent-brand-400"
+                />
+                <span className="text-white font-semibold w-14 text-right">{input.currentOccupancyPct ?? 65}%</span>
+              </div>
+              <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <span>0%</span><span>100%</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Room Count */}
+      {/* ── Section C: Market Context ── */}
       <div>
-        <label className="block text-sm font-medium text-surface-200 mb-1.5">
-          Number of Rooms
-          <Tooltip text="Total hotel rooms. 50-100 is a small hotel, 100-200 is mid-size, 200+ is large." />
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min="20"
-            max="500"
-            step="10"
-            value={input.roomCount}
-            onChange={(e) => update({ roomCount: Number(e.target.value) })}
-            className="flex-1 accent-brand-400"
-          />
-          <span className="text-white font-semibold w-16 text-right">{input.roomCount}</span>
-        </div>
-        <div className="flex justify-between text-xs text-surface-500 mt-1">
-          <span>20 rooms</span><span>500 rooms</span>
-        </div>
-      </div>
+        <SectionHeader title="Market Context" subtitle="City classification and market segment guide competitive and regulatory analysis" />
+        <div className="space-y-5">
+          {/* City Tier */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              City Classification
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {CITY_TIERS.map((tier) => (
+                <button
+                  key={tier.value}
+                  onClick={() => update({ cityTier: tier.value })}
+                  className={`py-3 px-4 rounded-xl border-2 text-left transition-all ${
+                    input.cityTier === tier.value
+                      ? 'border-brand-400 bg-brand-500/10'
+                      : 'border-surface-600 bg-surface-800 hover:border-surface-500'
+                  }`}
+                >
+                  <div className={`text-sm font-medium ${input.cityTier === tier.value ? 'text-brand-400' : 'text-white'}`}>
+                    {tier.label}
+                  </div>
+                  <div className="text-xs text-surface-500">{tier.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
 
-      {/* Land Area */}
-      <div>
-        <label className="block text-sm font-medium text-surface-200 mb-1.5">
-          Land Area (acres)
-          <Tooltip text="1 acre ≈ size of a football field. A typical mid-size hotel needs 2-5 acres." />
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min="0.5"
-            max="20"
-            step="0.5"
-            value={input.landAreaAcres}
-            onChange={(e) => update({ landAreaAcres: Number(e.target.value) })}
-            className="flex-1 accent-brand-400"
-          />
-          <span className="text-white font-semibold w-16 text-right">{input.landAreaAcres}</span>
-        </div>
-        <div className="flex justify-between text-xs text-surface-500 mt-1">
-          <span>0.5 acres</span><span>20 acres</span>
+          {/* Market Segment */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Primary Market Segment
+              <Tooltip text="The main demand driver for this location. Agents will research competitive dynamics for this segment." />
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {MARKET_SEGMENTS.map((seg) => (
+                <button
+                  key={seg.value}
+                  onClick={() => update({ marketSegment: seg.value })}
+                  className={`py-2.5 px-3 rounded-xl border-2 text-center text-sm font-medium transition-all ${
+                    input.marketSegment === seg.value
+                      ? 'border-brand-400 bg-brand-500/10 text-brand-400'
+                      : 'border-surface-600 bg-surface-800 text-surface-300 hover:border-surface-500'
+                  }`}
+                >
+                  <span className="mr-1">{seg.icon}</span> {seg.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Optional: Competing Hotels */}
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Competing Hotels Nearby
+              <span className="text-xs text-surface-500 ml-1">(optional)</span>
+              <Tooltip text="Approximate number of similar-category hotels within 5km. Leave blank and our agents will research." />
+            </label>
+            <input
+              type="number"
+              value={input.competingHotelsNearby ?? ''}
+              onChange={(e) => update({ competingHotelsNearby: e.target.value ? Number(e.target.value) : undefined })}
+              placeholder="Leave blank — agents will research this"
+              min={0}
+              max={500}
+              className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+            />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/* ─── Step 2: Investment & Financing ─── */
 function Step2({ input, errors = {}, update }: StepProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="space-y-5">
       {/* Investment Amount */}
@@ -476,10 +746,68 @@ function Step2({ input, errors = {}, update }: StepProps) {
           <span>3 years</span><span>15 years</span>
         </div>
       </div>
+
+      {/* Conditional: Existing Debt (acquisitions) */}
+      {input.dealType === 'acquisition' && (
+        <div className="bg-surface-800/30 border border-surface-700 rounded-xl p-4 space-y-4">
+          <h4 className="text-sm font-semibold text-surface-200">Acquisition Details</h4>
+          <div>
+            <label className="block text-sm font-medium text-surface-200 mb-1.5">
+              Existing Debt on Property (₹ Cr)
+              <Tooltip text="Outstanding debt that you will assume or need to refinance as part of the acquisition." />
+            </label>
+            <div className="flex items-center gap-4">
+              <span className="text-surface-400">₹</span>
+              <input
+                type="range"
+                min="0"
+                max="500"
+                step="5"
+                value={input.existingDebtCr ?? 0}
+                onChange={(e) => update({ existingDebtCr: Number(e.target.value) || undefined })}
+                className="flex-1 accent-brand-400"
+              />
+              <span className="text-white font-semibold w-20 text-right">{input.existingDebtCr ?? 0} Cr</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Advanced Optional Metrics */}
+      <div>
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="text-sm text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+        >
+          <span className={`transition-transform ${showAdvanced ? 'rotate-90' : ''}`}>▶</span>
+          {showAdvanced ? 'Hide' : 'Show'} advanced metrics
+          <span className="text-xs text-surface-500 ml-1">(optional)</span>
+        </button>
+        {showAdvanced && (
+          <div className="mt-3 bg-surface-800/30 border border-surface-700 rounded-xl p-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-surface-200 mb-1.5">
+                Known RevPAR (₹/night)
+                <Tooltip text="Revenue Per Available Room — if you know this metric for the property or market, it significantly improves revenue modeling." />
+              </label>
+              <input
+                type="number"
+                value={input.knownRevparInr ?? ''}
+                onChange={(e) => update({ knownRevparInr: e.target.value ? Number(e.target.value) : undefined })}
+                placeholder="Leave blank if unknown — agents will estimate"
+                min={0}
+                max={200000}
+                className="w-full bg-surface-800 border border-surface-600 rounded-xl px-4 py-3 text-white placeholder:text-surface-500 focus:border-brand-400 focus:ring-1 focus:ring-brand-400 outline-none transition-all"
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+/* ─── Step 3: Expectations ─── */
 function Step3({ input, update }: Omit<StepProps, 'errors'>) {
   return (
     <div className="space-y-5">
@@ -556,17 +884,37 @@ function Step3({ input, update }: Omit<StepProps, 'errors'>) {
   );
 }
 
+/* ─── Step 4: Review ─── */
 function Step4({ input }: { input: InvestWizardInput }) {
+  const propertyTypeLabel = PROPERTY_TYPES.find((p) => p.value === input.propertyType)?.label ?? input.propertyType;
+  const cityTierLabel = CITY_TIERS.find((t) => t.value === input.cityTier)?.label ?? input.cityTier;
+  const marketSegLabel = MARKET_SEGMENTS.find((s) => s.value === input.marketSegment)?.label ?? input.marketSegment;
+
   const sections = [
     {
-      title: 'Property',
+      title: 'Location & Property',
       icon: '🏨',
       items: [
         { label: 'Name', value: input.propertyName },
-        { label: 'Location', value: `${input.city}, ${input.state}` },
-        { label: 'Rating', value: `${'★'.repeat(input.starRating)} ${input.starRating}-Star` },
-        { label: 'Rooms', value: `${input.roomCount} rooms` },
-        { label: 'Land', value: `${input.landAreaAcres} acres` },
+        { label: 'Address', value: input.propertyAddress || `${input.city}, ${input.state}` },
+        ...(input.latitude !== 0 ? [{ label: 'Coordinates', value: `${input.latitude.toFixed(4)}°N, ${input.longitude.toFixed(4)}°E` }] : []),
+        ...(input.nearestAirport ? [{ label: 'Nearest Airport', value: `${input.distanceToAirportKm} km — ${input.nearestAirport}` }] : []),
+        { label: 'City / State', value: `${input.city}, ${input.state}` },
+        { label: 'Star Rating', value: `${'★'.repeat(Math.min(input.starRating, 5))} ${input.starRating}-Star` },
+        { label: 'Property Type', value: propertyTypeLabel },
+        { label: 'Rooms / Land', value: `${input.roomCount} rooms · ${input.landAreaAcres} acres` },
+        ...(input.propertyAge != null ? [{ label: 'Property Age', value: `${input.propertyAge} years` }] : []),
+        ...(input.constructionTimelineMonths != null ? [{ label: 'Construction', value: `${input.constructionTimelineMonths} months` }] : []),
+        ...(input.currentOccupancyPct != null ? [{ label: 'Current Occupancy', value: `${input.currentOccupancyPct}%` }] : []),
+      ],
+    },
+    {
+      title: 'Market Context',
+      icon: '📊',
+      items: [
+        { label: 'City Tier', value: cityTierLabel },
+        { label: 'Market Segment', value: marketSegLabel },
+        ...(input.competingHotelsNearby != null ? [{ label: 'Competing Hotels', value: `~${input.competingHotelsNearby} within 5km` }] : []),
       ],
     },
     {
@@ -577,6 +925,8 @@ function Step4({ input }: { input: InvestWizardInput }) {
         { label: 'Project Type', value: input.dealType === 'new_build' ? 'New Build' : input.dealType === 'renovation' ? 'Renovation' : 'Acquisition' },
         { label: 'Structure', value: input.partnershipType === 'solo' ? 'Solo Investment' : 'Partnership' },
         { label: 'Timeline', value: `${input.timelineYears} years` },
+        ...(input.existingDebtCr ? [{ label: 'Existing Debt', value: `₹${input.existingDebtCr} Crore` }] : []),
+        ...(input.knownRevparInr ? [{ label: 'Known RevPAR', value: `₹${input.knownRevparInr}/night` }] : []),
       ],
     },
     {
@@ -610,7 +960,7 @@ function Step4({ input }: { input: InvestWizardInput }) {
       {/* What happens next */}
       <div className="bg-surface-800/50 rounded-xl p-4 border border-surface-700">
         <h3 className="text-sm font-semibold text-white mb-3">What happens when you click &ldquo;Analyze&rdquo;</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {AGENT_PHASES.map((agent) => (
             <div key={agent.name} className="flex items-start gap-2">
               <span className="text-lg">{agent.icon}</span>
@@ -633,7 +983,6 @@ function Step4({ input }: { input: InvestWizardInput }) {
 function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
   const [activeAgents, setActiveAgents] = useState<number[]>([]);
 
-  // Simulate agents activating progressively
   useEffect(() => {
     const timers = AGENT_PHASES.map((_, i) =>
       setTimeout(() => setActiveAgents((prev) => [...prev, i]), 500 + i * 400)
@@ -644,7 +993,6 @@ function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
       <div className="max-w-lg w-full text-center">
-        {/* Animated spinner */}
         <div className="relative w-24 h-24 mx-auto mb-8">
           <div className="absolute inset-0 rounded-full border-4 border-surface-700" />
           <div className="absolute inset-0 rounded-full border-4 border-brand-400 border-t-transparent animate-spin" />
@@ -657,7 +1005,6 @@ function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
         <h2 className="text-2xl font-bold text-white mb-2">Our Expert Team is Working</h2>
         <p className="text-surface-400 mb-8">16 AI experts are analyzing your investment right now</p>
 
-        {/* Agent progress cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
           {AGENT_PHASES.map((agent, i) => {
             const isActive = activeAgents.includes(i);

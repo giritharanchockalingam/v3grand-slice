@@ -33,6 +33,24 @@ interface InvestWizardInput {
   returnLevel: 'conservative' | 'moderate' | 'aggressive';
   riskComfort: 'low' | 'medium' | 'high';
   timelineYears: number;
+  // Location (Google Maps)
+  propertyAddress: string;
+  latitude: number;
+  longitude: number;
+  distanceToAirportKm: number;
+  nearestAirport: string;
+  // Property Classification
+  propertyType: 'luxury_resort' | 'business_hotel' | 'budget_hotel' | 'heritage' | 'boutique' | 'mixed_use';
+  propertyAge?: number;
+  constructionTimelineMonths?: number;
+  currentOccupancyPct?: number;
+  // Market Context
+  cityTier: 'tier1' | 'tier2' | 'tier3';
+  marketSegment: 'tourist' | 'business' | 'pilgrimage' | 'medical' | 'mixed';
+  competingHotelsNearby?: number;
+  // Financial
+  existingDebtCr?: number;
+  knownRevparInr?: number;
 }
 
 /** Data provenance for an agent's analysis */
@@ -110,10 +128,39 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
   const targetIRR = mapReturnLevel(input.returnLevel);
   const scenarios = mapRiskScenarios(input.riskComfort);
 
-  // Scale ADR based on star rating
-  const adrMultiplier = input.starRating >= 5 ? 1.4 : input.starRating >= 4 ? 1.0 : 0.7;
-  const adrBase = Math.round(5500 * adrMultiplier);
-  const adrStabilized = Math.round(7000 * adrMultiplier);
+  // Scale ADR based on star rating and property type
+  const starMultiplier = input.starRating >= 7 ? 2.0 : input.starRating >= 5 ? 1.4 : input.starRating >= 4 ? 1.0 : 0.7;
+  const typeMultiplier = input.propertyType === 'luxury_resort' ? 1.3 : input.propertyType === 'heritage' ? 1.2 : input.propertyType === 'boutique' ? 1.1 : input.propertyType === 'budget_hotel' ? 0.6 : 1.0;
+  const adrBase = Math.round(5500 * starMultiplier * typeMultiplier);
+  const adrStabilized = input.knownRevparInr
+    ? Math.round(input.knownRevparInr / 0.68) // Derive ADR from RevPAR / avg occupancy
+    : Math.round(7000 * starMultiplier * typeMultiplier);
+
+  // Occupancy ramp — acquisitions start at current occupancy, new builds ramp from 30%
+  const baseOccupancy = input.currentOccupancyPct ? input.currentOccupancyPct / 100 : 0.68;
+  const occupancyRamp = input.dealType === 'acquisition' || input.dealType === 'renovation'
+    ? [baseOccupancy, Math.min(baseOccupancy + 0.03, 0.85), Math.min(baseOccupancy + 0.05, 0.85), Math.min(baseOccupancy + 0.06, 0.85), Math.min(baseOccupancy + 0.07, 0.85), Math.min(baseOccupancy + 0.07, 0.85), Math.min(baseOccupancy + 0.07, 0.85), Math.min(baseOccupancy + 0.07, 0.85), Math.min(baseOccupancy + 0.07, 0.85), Math.min(baseOccupancy + 0.07, 0.85)]
+    : [0.3, 0.45, 0.55, 0.62, 0.68, 0.72, 0.72, 0.72, 0.72, 0.72];
+
+  // Amenities based on property type
+  const baseAmenities = ['Restaurant', 'Gym'];
+  const typeAmenities: Record<string, string[]> = {
+    luxury_resort: ['Pool', 'Spa', 'Private Beach', 'Fine Dining', 'Conference Hall', 'Helipad'],
+    business_hotel: ['Conference Hall', 'Business Center', 'Pool', 'Spa'],
+    budget_hotel: ['Cafe', 'Parking'],
+    heritage: ['Heritage Walk', 'Spa', 'Pool', 'Cultural Center'],
+    boutique: ['Pool', 'Spa', 'Rooftop Lounge'],
+    mixed_use: ['Pool', 'Spa', 'Conference Hall', 'Retail'],
+  };
+
+  // Competitive set if info available
+  const compSet = input.competingHotelsNearby ? [{
+    name: `Local Market (~${input.competingHotelsNearby} similar hotels)`,
+    keys: Math.round(input.roomCount * 1.2),
+    adr: adrStabilized,
+    occ: baseOccupancy,
+    revpar: Math.round(adrStabilized * baseOccupancy),
+  }] : [];
 
   return {
     name: input.propertyName,
@@ -127,7 +174,16 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
       investmentSizeBand: input.investmentAmountCr <= 50 ? '<50Cr' : input.investmentAmountCr <= 200 ? '50-200Cr' : '200Cr+',
     },
     property: {
-      location: { city: input.city, state: input.state, country: 'India', latitude: 0, longitude: 0, distanceToAirportKm: 0 },
+      location: {
+        city: input.city,
+        state: input.state,
+        country: 'India',
+        latitude: input.latitude,
+        longitude: input.longitude,
+        distanceToAirportKm: input.distanceToAirportKm,
+        address: input.propertyAddress,
+        nearestAirport: input.nearestAirport,
+      },
       landArea: { sqft: Math.round(input.landAreaAcres * 43560), acres: input.landAreaAcres },
       grossBUA: { phase1Sqft: Math.round(input.roomCount * 600), phase2Sqft: 0, totalSqft: Math.round(input.roomCount * 600) },
       keys: { phase1: input.roomCount, phase2: 0, total: input.roomCount },
@@ -136,8 +192,20 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
         { type: 'Premium', count: Math.round(input.roomCount * 0.3), avgRate: Math.round(adrBase * 1.3) },
         { type: 'Suite', count: Math.round(input.roomCount * 0.2), avgRate: Math.round(adrBase * 2.0) },
       ],
-      amenities: ['Restaurant', 'Pool', 'Gym', 'Spa', 'Conference Hall'],
+      amenities: [...baseAmenities, ...(typeAmenities[input.propertyType] || [])],
       starRating: input.starRating,
+    },
+    marketContext: {
+      propertyType: input.propertyType,
+      cityTier: input.cityTier,
+      marketSegment: input.marketSegment,
+      propertyAge: input.propertyAge,
+      constructionTimelineMonths: input.constructionTimelineMonths,
+      currentOccupancy: input.currentOccupancyPct,
+      competingHotels: input.competingHotelsNearby,
+      nearestAirport: input.nearestAirport,
+      distanceToAirportKm: input.distanceToAirportKm,
+      knownRevpar: input.knownRevparInr,
     },
     partnership: {
       structure: input.partnershipType === 'solo' ? 'sole' : 'jv',
@@ -150,13 +218,13 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
         { name: 'Corporate Events', pctMix: 0.20, adrPremium: 0.9, seasonality: [1,1,1,1,0.8,0.6,0.6,0.8,1,1,1.2,1.2] },
         { name: 'International', pctMix: 0.15, adrPremium: 1.4, seasonality: [1.3,1.2,1,0.7,0.5,0.4,0.4,0.6,0.8,1.1,1.3,1.5] },
       ],
-      occupancyRamp: [0.3, 0.45, 0.55, 0.62, 0.68, 0.72, 0.72, 0.72, 0.72, 0.72],
+      occupancyRamp,
       adrBase,
       adrStabilized,
       adrGrowthRate: 0.05,
       revenueMix: { rooms: 0.55, fb: 0.25, banquet: 0.12, other: 0.08 },
       seasonality: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, multiplier: 1.0 })),
-      compSet: [],
+      compSet,
     },
     financialAssumptions: {
       wacc: 0.12, riskFreeRate: 0.065,
@@ -170,6 +238,7 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
       targetIRR,
       targetEquityMultiple: 2.5,
       targetDSCR: 1.2,
+      existingDebtCr: input.existingDebtCr || 0,
     },
     capexPlan: {
       phase1: { totalBudgetCr: input.investmentAmountCr * 0.85, items: [] },

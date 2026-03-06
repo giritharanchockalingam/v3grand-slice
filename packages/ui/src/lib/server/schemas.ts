@@ -42,6 +42,28 @@ export const investAnalyzeSchema = z.object({
   returnLevel: z.enum(['conservative', 'moderate', 'aggressive']),
   riskComfort: z.enum(['low', 'medium', 'high']),
   timelineYears: z.number().int().min(1).max(30),
+
+  // Location
+  propertyAddress: safeString(500).min(3),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  distanceToAirportKm: z.number().min(0).max(2000),
+  nearestAirport: safeString(200),
+
+  // Property Classification
+  propertyType: z.enum(['luxury_resort', 'business_hotel', 'budget_hotel', 'heritage', 'boutique', 'mixed_use']),
+  propertyAge: z.number().int().min(0).max(200).optional(),
+  constructionTimelineMonths: z.number().int().min(6).max(120).optional(),
+  currentOccupancyPct: z.number().min(0).max(100).optional(),
+
+  // Market Context
+  cityTier: z.enum(['tier1', 'tier2', 'tier3']),
+  marketSegment: z.enum(['tourist', 'business', 'pilgrimage', 'medical', 'mixed']),
+  competingHotelsNearby: z.number().int().min(0).max(500).optional(),
+
+  // Financial Context
+  existingDebtCr: z.number().min(0).max(100000).optional(),
+  knownRevparInr: z.number().positive().max(200000).optional(),
 });
 
 export const agentChatSchema = z.object({

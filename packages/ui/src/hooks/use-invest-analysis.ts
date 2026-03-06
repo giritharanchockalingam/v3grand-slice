@@ -16,6 +16,28 @@ export interface InvestWizardInput {
   returnLevel: 'conservative' | 'moderate' | 'aggressive';
   riskComfort: 'low' | 'medium' | 'high';
   timelineYears: number;
+
+  // Location (Google Maps)
+  propertyAddress: string;
+  latitude: number;
+  longitude: number;
+  distanceToAirportKm: number;
+  nearestAirport: string;
+
+  // Property Classification
+  propertyType: 'luxury_resort' | 'business_hotel' | 'budget_hotel' | 'heritage' | 'boutique' | 'mixed_use';
+  propertyAge?: number;
+  constructionTimelineMonths?: number;
+  currentOccupancyPct?: number;
+
+  // Market Context
+  cityTier: 'tier1' | 'tier2' | 'tier3';
+  marketSegment: 'tourist' | 'business' | 'pilgrimage' | 'medical' | 'mixed';
+  competingHotelsNearby?: number;
+
+  // Financial Context
+  existingDebtCr?: number;
+  knownRevparInr?: number;
 }
 
 /** Single agent result */
