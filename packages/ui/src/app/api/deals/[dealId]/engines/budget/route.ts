@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { withRLS } from '@/lib/server/db';
+import { getAuthUser } from '@/lib/server/auth';
 import { getLatestEngineResult } from '@v3grand/db';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
     const { dealId } = await params;
-    const db = getDb();
-    const result = await getLatestEngineResult(db, dealId, 'budget');
+    const user = await getAuthUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const result = await withRLS(user.userId, user.role, (db) =>
+      getLatestEngineResult(db, dealId, 'budget')
+    );
     if (!result) return NextResponse.json({ results: null, status: 'not_run' });
     return NextResponse.json({ results: result.output, status: 'completed', version: result.version });
   } catch (err) {

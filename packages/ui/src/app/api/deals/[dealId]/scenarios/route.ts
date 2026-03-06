@@ -1,21 +1,32 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { withRLS } from '@/lib/server/db';
+import { getAuthUser } from '@/lib/server/auth';
 import { getDealById, getScenarioResults, getScenarioRecommendations } from '@v3grand/db';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
     const { dealId } = await params;
-    const db = getDb();
-    const dealRow = await getDealById(db, dealId);
-    if (!dealRow) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    const user = await getAuthUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const [uwResults, recResults] = await Promise.all([
-      getScenarioResults(db, dealId, 'underwriter'),
-      getScenarioRecommendations(db, dealId),
-    ]);
+    const data = await withRLS(user.userId, user.role, async (db) => {
+      const dealRow = await getDealById(db, dealId);
+      if (!dealRow) return null;
+
+      const [uwResults, recResults] = await Promise.all([
+        getScenarioResults(db, dealId, 'underwriter'),
+        getScenarioRecommendations(db, dealId),
+      ]);
+
+      return { dealRow, uwResults, recResults };
+    });
+
+    if (!data) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+
+    const { dealRow, uwResults, recResults } = data;
 
     const formatProforma = (uw: any) => uw ? (uw.output as any) : null;
     const formatRec = (rec: any) => rec ? {

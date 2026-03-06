@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { withRLS } from '@/lib/server/db';
 import { requireAuth } from '@/lib/server/auth';
 import { getUserById } from '@v3grand/db';
 
 export async function GET(request: Request) {
   try {
     const authUser = await requireAuth(request);
-    const db = getDb();
-    const user = await getUserById(db, authUser.userId);
+    const user = await withRLS(authUser.userId, authUser.role, (db) =>
+      getUserById(db, authUser.userId)
+    );
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { withRLS } from '@/lib/server/db';
+import { getAuthUser } from '@/lib/server/auth';
 import {
   getDealById, getLatestEngineResult, getLatestEngineResultByScenario,
   getLatestRecommendation, getRecentAudit, getConstructionSummary,
@@ -8,32 +9,42 @@ import { recommendations } from '@v3grand/db';
 import { eq, desc } from 'drizzle-orm';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
     const { dealId } = await params;
-    const db = getDb();
-    const dealRow = await getDealById(db, dealId);
-    if (!dealRow) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    const user = await getAuthUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const [latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestSCurveResult, latestDecisionResult, audit, constructionSummary] = await Promise.all([
-      getLatestEngineResultByScenario(db, dealId, 'underwriter', 'base'),
-      getLatestRecommendation(db, dealId),
-      getLatestEngineResult(db, dealId, 'montecarlo'),
-      getLatestEngineResult(db, dealId, 'factor'),
-      getLatestEngineResult(db, dealId, 'budget'),
-      getLatestEngineResult(db, dealId, 'scurve'),
-      getLatestEngineResult(db, dealId, 'decision'),
-      getRecentAudit(db, dealId, 50),
-      getConstructionSummary(db, dealId),
-    ]);
+    const data = await withRLS(user.userId, user.role, async (db) => {
+      const dealRow = await getDealById(db, dealId);
+      if (!dealRow) return null;
 
-    const recHistory = await db.select()
-      .from(recommendations)
-      .where(eq(recommendations.dealId, dealId))
-      .orderBy(desc(recommendations.version))
-      .limit(20);
+      const [latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestSCurveResult, latestDecisionResult, audit, constructionSummary] = await Promise.all([
+        getLatestEngineResultByScenario(db, dealId, 'underwriter', 'base'),
+        getLatestRecommendation(db, dealId),
+        getLatestEngineResult(db, dealId, 'montecarlo'),
+        getLatestEngineResult(db, dealId, 'factor'),
+        getLatestEngineResult(db, dealId, 'budget'),
+        getLatestEngineResult(db, dealId, 'scurve'),
+        getLatestEngineResult(db, dealId, 'decision'),
+        getRecentAudit(db, dealId, 50),
+        getConstructionSummary(db, dealId),
+      ]);
+
+      const recHistory = await db.select()
+        .from(recommendations)
+        .where(eq(recommendations.dealId, dealId))
+        .orderBy(desc(recommendations.version))
+        .limit(20);
+
+      return { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestSCurveResult, latestDecisionResult, audit, constructionSummary, recHistory };
+    });
+
+    if (!data) return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+
+    const { dealRow, latestUW, latestRec, latestMCResult, latestFactorResult, latestBudgetResult, latestSCurveResult, latestDecisionResult, audit, constructionSummary, recHistory } = data;
 
     const latestProforma = latestUW ? (() => {
       const output = latestUW.output as any;
@@ -66,7 +77,7 @@ export async function GET(
       completionPct: constructionSummary.completionPct,
     } : null;
 
-    const recentEvents = audit.map(a => {
+    const recentEvents = audit.map((a: any) => {
       let severity: string = 'info';
       if (a.action.includes('failed') || a.action.includes('crash')) severity = 'critical';
       else if (a.action.includes('flip') || a.action.includes('overrun')) severity = 'warning';
@@ -107,7 +118,7 @@ export async function GET(
         };
       })() : null,
       recentEvents,
-      recommendationHistory: recHistory.map(r => ({
+      recommendationHistory: recHistory.map((r: any) => ({
         version: r.version, verdict: r.verdict, confidence: r.confidence,
         timestamp: r.createdAt.toISOString(), scenarioKey: r.scenarioKey,
         explanation: r.explanation, previousVerdict: r.previousVerdict,

@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { getDb, withRLS } from '@/lib/server/db';
 import { getAuthUser } from '@/lib/server/auth';
 import { listDealsByUser, listDeals } from '@v3grand/db';
 
 export async function GET(request: Request) {
   try {
-    const db = getDb();
     const user = await getAuthUser(request);
 
-    // If authenticated, list deals by user access; otherwise list all (for demo)
+    // If authenticated, use RLS-enforced query — only returns deals user has access to
     if (user) {
-      const deals = await listDealsByUser(db, user.userId);
+      const deals = await withRLS(user.userId, user.role, (db) =>
+        listDealsByUser(db, user.userId)
+      );
       return NextResponse.json(deals);
     }
 
-    // Fallback: list all deals (for demo/unauthenticated access)
+    // Fallback: list all deals (for demo/unauthenticated access) — superuser
+    const db = getDb();
     const deals = await listDeals(db);
     return NextResponse.json(deals);
   } catch (err) {
@@ -28,6 +30,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Deal creation + initial access grant uses superuser (bootstrap before RLS can apply)
     const db = getDb();
     const user = await getAuthUser(request);
     if (!user) {

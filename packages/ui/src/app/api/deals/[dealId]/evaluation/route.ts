@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/server/db';
+import { withRLS } from '@/lib/server/db';
+import { getAuthUser } from '@/lib/server/auth';
 import { getDealById } from '@v3grand/db';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
     const { dealId } = await params;
-    const db = getDb();
-    const deal = await getDealById(db, dealId);
+    const user = await getAuthUser(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const deal = await withRLS(user.userId, user.role, (db) =>
+      getDealById(db, dealId)
+    );
     if (!deal) return NextResponse.json(null);
 
     // Return the deal's property evaluation data
