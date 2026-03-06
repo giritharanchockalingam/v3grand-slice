@@ -13,6 +13,7 @@ function Navbar() {
   const pathname = usePathname();
 
   const navLinks = [
+    { href: '/invest', label: 'Invest', Icon: NavDealsIcon },
     { href: '/deals', label: 'Deals', Icon: NavDealsIcon },
     { href: '/portfolio', label: 'Portfolio', Icon: NavPortfolioIcon },
     { href: '/agents', label: 'CFO Agents', Icon: NavAgentIcon },
@@ -38,6 +39,7 @@ function Navbar() {
             <div className="flex items-center gap-1 border-l border-white/10 pl-6">
               {navLinks.map((link) => {
                 const isActive = pathname === link.href ||
+                  (link.href === '/invest' && pathname?.startsWith('/invest/')) ||
                   (link.href === '/deals' && pathname?.startsWith('/deals/')) ||
                   (link.href === '/agents' && pathname?.startsWith('/agents/')) ||
                   (link.href === '/agent' && pathname === '/agent');
