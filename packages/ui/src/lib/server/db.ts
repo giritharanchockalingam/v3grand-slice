@@ -22,12 +22,16 @@ export function getDb(): PostgresJsDatabase {
   const isPooler = databaseUrl.includes('pooler.supabase.com');
   const databaseSchema = process.env.DATABASE_SCHEMA || '';
 
-  cachedSql = postgres(databaseUrl, {
+  // Append search_path via connection string options for pooler compatibility
+  let connUrl = databaseUrl;
+  if (databaseSchema && !databaseUrl.includes('options=')) {
+    const separator = databaseUrl.includes('?') ? '&' : '?';
+    connUrl = `${databaseUrl}${separator}options=-csearch_path%3D${databaseSchema}`;
+  }
+
+  cachedSql = postgres(connUrl, {
     ...(isSupabase ? { ssl: 'require' } : {}),
     ...(isPooler ? { prepare: false } : {}), // pooler transaction mode doesn't support prepared statements
-    ...(databaseSchema
-      ? { connection: { search_path: databaseSchema } }
-      : {}),
     max: 3, // limit connections in serverless
     idle_timeout: 20,
   });
