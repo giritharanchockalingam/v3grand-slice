@@ -15,7 +15,8 @@ function Navbar() {
   const navLinks = [
     { href: '/deals', label: 'Deals', Icon: NavDealsIcon },
     { href: '/portfolio', label: 'Portfolio', Icon: NavPortfolioIcon },
-    { href: '/agent', label: 'Agent', Icon: NavAgentIcon },
+    { href: '/agents', label: 'CFO Agents', Icon: NavAgentIcon },
+    { href: '/agent', label: 'Chat', Icon: NavAgentIcon },
   ];
 
   return (
@@ -38,7 +39,8 @@ function Navbar() {
               {navLinks.map((link) => {
                 const isActive = pathname === link.href ||
                   (link.href === '/deals' && pathname?.startsWith('/deals/')) ||
-                  (link.href === '/agent' && pathname?.startsWith('/agent'));
+                  (link.href === '/agents' && pathname?.startsWith('/agents/')) ||
+                  (link.href === '/agent' && pathname === '/agent');
                 return (
                   <Link
                     key={link.href}

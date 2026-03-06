@@ -12,7 +12,10 @@
     "postgres": "^3.4.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "recharts": "^2.10.0"
+    "recharts": "^2.10.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@v3grand/mcp-server": "workspace:*",
+    "@v3grand/mcp": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
