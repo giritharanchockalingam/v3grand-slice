@@ -42,9 +42,11 @@ export async function POST(request: Request) {
     // Build the full system prompt with format instructions
     const systemPrompt = `${agent.systemPrompt}\n\n${agent.formatInstructions}`;
 
-    // Tool execution context with user info (falls back to demo defaults)
+    // Tool execution context with user info.
+    // When no authenticated user, omit userId so list_deals returns ALL deals
+    // instead of filtering by a non-existent user ID.
     const toolContext: ToolContext = {
-      userId: user?.userId ?? 'demo-lead-001',
+      userId: user?.userId,
       role: user?.role ?? 'lead_investor',
     };
 

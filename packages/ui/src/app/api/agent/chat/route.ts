@@ -32,8 +32,9 @@ export async function POST(request: Request) {
     const tools = getClaudeTools(agent.toolNames);
     const systemPrompt = `${agent.systemPrompt}\n\n${agent.formatInstructions}`;
 
+    // When no authenticated user, omit userId so list_deals returns ALL deals
     const toolContext: ToolContext = {
-      userId: user?.userId ?? 'demo-lead-001',
+      userId: user?.userId,
       role: user?.role ?? 'lead_investor',
     };
 
