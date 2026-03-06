@@ -350,7 +350,7 @@ function formatFlipAction(g: GateCheck, pf: any, fin: any): string {
   return `Improve ${g.name} from ${g.actual.toFixed(2)} to meet threshold of ${g.threshold.toFixed(2)}`;
 }
 
-// ─── Compose Investor-Grade Narrative ──
+// ─── Compose CFO-Grade Narrative ──────────────────────────────────
 function composeNarrative(
   verdict: RecommendationVerdict,
   confidence: number,
@@ -366,54 +366,94 @@ function composeNarrative(
 ): string {
   const passCount = gates.filter(g => g.passed).length;
   const totalGates = gates.length;
+  const failedGates = gates.filter(g => !g.passed);
   const parts: string[] = [];
 
-  // Opening: verdict context
+  // Opening: verdict context with gate specificity
   if (isFlip && prevVerdict) {
-    parts.push(`This deal has moved from ${prevVerdict} to ${verdict} — a significant shift driven by changes in the underlying metrics.`);
+    parts.push(`This deal has migrated from ${prevVerdict} to ${verdict} — a material shift driven by changes in the underlying return and risk metrics.`);
   } else {
     switch (verdict) {
       case 'INVEST':
-        parts.push(`This deal clears all key investment thresholds, passing ${passCount} of ${totalGates} gates with ${confidence}% confidence.`);
+        parts.push(`This deal clears ${passCount} of ${totalGates} investment gates at ${confidence}% confidence, supporting capital deployment.`);
         break;
       case 'HOLD':
-        parts.push(`This deal shows promise but ${totalGates - passCount} gate${totalGates - passCount > 1 ? 's' : ''} remain${totalGates - passCount === 1 ? 's' : ''} unmet, warranting continued monitoring before commitment.`);
+        parts.push(`${totalGates - passCount} of ${totalGates} investment gate${totalGates - passCount > 1 ? 's' : ''} remain unmet${failedGates.length > 0 ? ` (${failedGates.slice(0, 2).map(g => g.name).join(', ')})` : ''}, warranting continued monitoring before capital commitment.`);
         break;
       case 'DE-RISK':
-        parts.push(`Several investment criteria are not met (${passCount}/${totalGates} passing), indicating the deal requires restructuring or improved terms before proceeding.`);
+        parts.push(`The deal passes only ${passCount} of ${totalGates} gates, with failures in ${failedGates.slice(0, 3).map(g => g.name).join(', ')}. Structural improvements are required before this is investable.`);
         break;
       case 'EXIT':
-        parts.push(`This deal fails a majority of investment gates (${passCount}/${totalGates} passing) and poses material downside risk in its current structure.`);
+        parts.push(`Investment gates fail at ${passCount}/${totalGates} passing, indicating material downside risk that is not compensated by the return profile.`);
         break;
       case 'DO-NOT-PROCEED':
-        parts.push(`Fundamental investment criteria are not met (${passCount}/${totalGates} gates passing). This deal does not support capital deployment at current terms.`);
+        parts.push(`Fundamental criteria unmet at ${passCount}/${totalGates} gates. Capital deployment is not supportable at current terms and structure.`);
         break;
     }
   }
 
-  // Middle: key numbers
+  // Return profile with spread analysis
   const irrVsWacc = pf.irr - fin.wacc;
+  const irrVsTarget = pf.irr - fin.targetIRR;
+  const bpsOverWacc = Math.round(irrVsWacc * 10000);
+  const bpsOverTarget = Math.round(irrVsTarget * 10000);
+
   if (irrVsWacc > 0) {
-    parts.push(`The base-case IRR of ${pct(pf.irr)} exceeds the ${pct(fin.wacc)} cost of capital by ${(irrVsWacc * 100).toFixed(0)} basis points, with a ${pf.equityMultiple.toFixed(2)}x equity multiple and payback in year ${pf.paybackYear}.`);
+    parts.push(`Base-case IRR of ${pct(pf.irr)} clears the ${pct(fin.wacc)} WACC by ${bpsOverWacc}bps — ${pf.equityMultiple.toFixed(2)}x equity multiple, payback year ${pf.paybackYear}, DSCR ${pf.avgDSCR.toFixed(2)}x.`);
   } else {
-    parts.push(`The base-case IRR of ${pct(pf.irr)} falls ${(Math.abs(irrVsWacc) * 100).toFixed(0)} basis points short of the ${pct(fin.wacc)} cost of capital, with a ${pf.equityMultiple.toFixed(2)}x equity multiple and payback in year ${pf.paybackYear}.`);
+    parts.push(`Base-case IRR of ${pct(pf.irr)} falls ${Math.abs(bpsOverWacc)}bps short of WACC (${pct(fin.wacc)}) — value destruction on a risk-adjusted basis. EM ${pf.equityMultiple.toFixed(2)}x, payback year ${pf.paybackYear}, DSCR ${pf.avgDSCR.toFixed(2)}x.`);
   }
 
-  // Closing: MC or risk context
-  if (mcResult) {
-    if (mcResult.probNpvNegative < 0.10) {
-      parts.push(`Monte Carlo simulation across 5,000 scenarios confirms limited downside with only ${pct(mcResult.probNpvNegative)} probability of capital loss.`);
-    } else if (mcResult.probNpvNegative < 0.25) {
-      parts.push(`Monte Carlo analysis flags moderate downside risk — ${pct(mcResult.probNpvNegative)} of scenarios result in negative NPV.`);
+  // Target IRR context (only if different from WACC)
+  if (Math.abs(fin.targetIRR - fin.wacc) > 0.005) {
+    if (irrVsTarget >= 0) {
+      parts.push(`Exceeds target IRR of ${pct(fin.targetIRR)} by ${bpsOverTarget}bps.`);
     } else {
-      parts.push(`Monte Carlo analysis reveals significant downside exposure — ${pct(mcResult.probNpvNegative)} of scenarios result in capital loss, warranting extreme caution.`);
+      parts.push(`Falls ${Math.abs(bpsOverTarget)}bps below the ${pct(fin.targetIRR)} target IRR.`);
+    }
+  }
+
+  // DSCR covenant analysis
+  if (pf.avgDSCR < 1.3) {
+    parts.push(`DSCR of ${pf.avgDSCR.toFixed(2)}x is below the 1.30x covenant floor — debt serviceability is at risk under stress.`);
+  }
+
+  // Monte Carlo: probabilistic context with distribution
+  if (mcResult) {
+    const pNeg = mcResult.probNpvNegative;
+    const p10 = mcResult.irrDistribution?.p10;
+    const p50 = mcResult.irrDistribution?.p50;
+
+    if (pNeg < 0.10) {
+      parts.push(`Monte Carlo: ${pct(pNeg)} probability of capital loss across 5,000 scenarios — downside well-contained.`);
+    } else if (pNeg < 0.25) {
+      parts.push(`Monte Carlo flags moderate tail risk: ${pct(pNeg)} probability of negative NPV.`);
+    } else {
+      parts.push(`Monte Carlo reveals significant downside: ${pct(pNeg)} probability of capital loss — this is a primary factor in the conservative positioning.`);
+    }
+
+    if (typeof p10 === 'number' && typeof p50 === 'number') {
+      parts.push(`IRR P10/P50: ${pct(p10)}/${pct(p50)}.`);
     }
   } else if (riskFlags.length > 0) {
-    parts.push(`Key risk factors include ${riskFlags.slice(0, 2).join(' and ').toLowerCase()}.`);
+    parts.push(`Key risk factors: ${riskFlags.slice(0, 3).join(', ').toLowerCase()}.`);
   }
 
-  if (budgetResult && budgetResult.overallStatus === 'RED') {
-    parts.push(`Construction budget is currently in RED status which is actively pressuring returns.`);
+  // Factor score
+  if (factorResult && typeof factorResult.compositeScore === 'number') {
+    const score = factorResult.compositeScore;
+    if (score < 3.0) {
+      parts.push(`Market factor score of ${score.toFixed(1)}/5.0 is below institutional grade, indicating structural headwinds.`);
+    }
+  }
+
+  // Budget execution risk
+  if (budgetResult) {
+    if (budgetResult.overallStatus === 'RED') {
+      parts.push(`Construction budget is in RED — cost overruns are actively compressing the return profile.`);
+    } else if (budgetResult.overallStatus === 'AMBER') {
+      parts.push(`Budget at AMBER status — monitoring for potential return compression.`);
+    }
   }
 
   return parts.join(' ');
