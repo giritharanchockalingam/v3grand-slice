@@ -156,7 +156,7 @@ export function RecommendationCard({ recommendation, decisionInsight }: Props) {
       )}
 
       {/* Expandable Gate Results */}
-      {recommendation.gateResults && (
+      {recommendation.gateResults && Array.isArray(recommendation.gateResults) && (
         <div className="mt-auto pt-3 border-t border-surface-100">
           <button
             onClick={() => setShowGates(!showGates)}

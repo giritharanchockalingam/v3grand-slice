@@ -747,6 +747,15 @@ export async function POST(request: Request) {
     // Persist recommendation so the deal dashboard shows it immediately
     try {
       const { insertRecommendation } = await import('@v3grand/db');
+
+      // Build gate results from synthesis (must be Array<{name, passed}> for UI)
+      const gateResults = [
+        { name: 'Return Threshold', passed: synthesis.verdict !== 'NO' },
+        { name: 'Risk Assessment', passed: synthesis.confidence >= 60 },
+        { name: 'Market Viability', passed: !synthesis.warnings.some((w: string) => /unproven|limited.*data|weak.*demand/i.test(w)) },
+        { name: 'Construction Budget', passed: !synthesis.warnings.some((w: string) => /construction.*cost|budget.*high|overrun/i.test(w)) },
+      ];
+
       await insertRecommendation(db, {
         dealId: deal.id,
         scenarioKey: 'base',
@@ -754,7 +763,7 @@ export async function POST(request: Request) {
         confidence: synthesis.confidence,
         triggerEvent: 'invest.analyze',
         proformaSnapshot: synthesis.keyMetrics,
-        gateResults: { warnings: synthesis.warnings },
+        gateResults,
         explanation: synthesis.summary,
         previousVerdict: null,
         isFlip: false,
