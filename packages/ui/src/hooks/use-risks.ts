@@ -61,8 +61,19 @@ export function useCreateRisk(dealId: string) {
 export function useUpdateRisk(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ riskId, ...updates }: { riskId: string; status?: string; mitigation?: string }) =>
-      api.patch(`/deals/${dealId}/risks/${riskId}`, updates),
+    mutationFn: ({ riskId, ...updates }: { riskId: string; status?: string; title?: string; description?: string; mitigation?: string; likelihood?: string; impact?: string; category?: string; owner?: string }) =>
+      api.patch(`/deals/${dealId}/risks`, { riskId, ...updates }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'risks'] });
+    },
+  });
+}
+
+export function useDeleteRisk(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (riskId: string) =>
+      api.delete(`/deals/${dealId}/risks?riskId=${riskId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'risks'] });
     },

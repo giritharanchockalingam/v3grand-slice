@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../lib/auth-context';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api-client';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +29,18 @@ const STATUS_COLORS: Record<string, string> = {
 export default function DealsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const qc = useQueryClient();
 
   const { data: deals = [], isLoading: dealsLoading, error } = useQuery<DealSummary[]>({
     queryKey: ['deals'],
     queryFn: () => api.get('/deals'),
     enabled: !!user,
     staleTime: 30_000,
+  });
+
+  const archiveDeal = useMutation({
+    mutationFn: (dealId: string) => api.delete(`/deals/${dealId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
   });
 
   if (!loading && !user) {
@@ -141,11 +147,28 @@ export default function DealsPage() {
                   </div>
                 )}
 
-                <div className="flex items-center gap-1.5 text-brand-600 font-semibold text-sm group-hover:text-brand-700">
-                  <span>Open Dashboard</span>
-                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-brand-600 font-semibold text-sm group-hover:text-brand-700">
+                    <span>Open Dashboard</span>
+                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  {deal.status !== 'archived' && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (confirm(`Archive deal "${deal.name}"? This will soft-delete it from active deals.`)) {
+                          archiveDeal.mutate(deal.id);
+                        }
+                      }}
+                      className="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded border border-red-200 transition-colors z-10 relative"
+                      title="Archive this deal"
+                    >
+                      Archive
+                    </button>
+                  )}
                 </div>
               </div>
             </Link>

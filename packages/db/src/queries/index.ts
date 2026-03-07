@@ -844,6 +844,55 @@ export async function saveInvestAnalysis(db: DB, payload: {
   return row!;
 }
 
+// ── Deal Full Update (edit name, property, partnership, etc.) ──
+export async function updateDeal(
+  db: DB,
+  dealId: string,
+  updates: Record<string, unknown>
+) {
+  const set: Record<string, unknown> = { ...updates, updatedAt: new Date() };
+  // Prevent overwriting system fields
+  delete set.id;
+  delete set.createdAt;
+  const [updated] = await db.update(deals).set(set).where(eq(deals.id, dealId)).returning();
+  return updated;
+}
+
+// ── Soft Delete Deal (archive) ──
+export async function softDeleteDeal(db: DB, dealId: string) {
+  const [updated] = await db.update(deals)
+    .set({ status: 'archived', updatedAt: new Date() })
+    .where(eq(deals.id, dealId))
+    .returning();
+  return updated;
+}
+
+// ── Delete Operations (construction items + risks) ──
+export async function deleteBudgetLine(db: DB, budgetLineId: string) {
+  const [deleted] = await db.delete(budgetLines).where(eq(budgetLines.id, budgetLineId)).returning();
+  return deleted ?? null;
+}
+
+export async function deleteChangeOrder(db: DB, coId: string) {
+  const [deleted] = await db.delete(changeOrders).where(eq(changeOrders.id, coId)).returning();
+  return deleted ?? null;
+}
+
+export async function deleteRFI(db: DB, rfiId: string) {
+  const [deleted] = await db.delete(rfis).where(eq(rfis.id, rfiId)).returning();
+  return deleted ?? null;
+}
+
+export async function deleteMilestone(db: DB, milestoneId: string) {
+  const [deleted] = await db.delete(milestones).where(eq(milestones.id, milestoneId)).returning();
+  return deleted ?? null;
+}
+
+export async function deleteRisk(db: DB, riskId: string) {
+  const [deleted] = await db.delete(risks).where(eq(risks.id, riskId)).returning();
+  return deleted ?? null;
+}
+
 export async function getLatestInvestAnalysis(db: DB, dealId: string) {
   const [row] = await db.select().from(investAnalyses)
     .where(eq(investAnalyses.dealId, dealId))

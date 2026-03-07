@@ -45,11 +45,12 @@ export function useConstruction(dealId: string) {
   });
 }
 
-export function useApproveChangeOrder(dealId: string) {
+// ── Create hooks ──
+export function useCreateBudgetLine(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (coId: string) =>
-      api.patch(`/deals/${dealId}/construction/change-orders/${coId}/approve`, {}),
+    mutationFn: (data: { costCode: string; description: string; category: string; originalAmount: number; currentBudget: number }) =>
+      api.post(`/deals/${dealId}/construction`, { type: 'budget_line', ...data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
@@ -60,10 +61,11 @@ export function useApproveChangeOrder(dealId: string) {
 export function useCreateChangeOrder(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { budgetLineId: string; title: string; description: string; amount: number }) =>
-      api.post(`/deals/${dealId}/construction/change-orders`, data),
+    mutationFn: (data: { budgetLineId: string; coNumber: string; title: string; description: string; amount: number }) =>
+      api.post(`/deals/${dealId}/construction`, { type: 'change_order', ...data }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
     },
   });
 }
@@ -71,8 +73,112 @@ export function useCreateChangeOrder(dealId: string) {
 export function useCreateRFI(dealId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { subject: string; question: string }) =>
-      api.post(`/deals/${dealId}/construction/rfis`, data),
+    mutationFn: (data: { rfiNumber: string; subject: string; question: string }) =>
+      api.post(`/deals/${dealId}/construction`, { type: 'rfi', ...data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+export function useCreateMilestone(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description: string; targetDate: string }) =>
+      api.post(`/deals/${dealId}/construction`, { type: 'milestone', ...data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+// ── Update hooks ──
+export function useUpdateBudgetLine(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...updates }: { id: string; [key: string]: unknown }) =>
+      api.patch(`/deals/${dealId}/construction`, { type: 'budget_line', id, ...updates }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+    },
+  });
+}
+
+export function useApproveChangeOrder(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (coId: string) =>
+      api.patch(`/deals/${dealId}/construction`, { type: 'change_order', id: coId, status: 'approved' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+    },
+  });
+}
+
+export function useAnswerRFI(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, answer }: { id: string; answer: string }) =>
+      api.patch(`/deals/${dealId}/construction`, { type: 'rfi', id, answer }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+export function useUpdateMilestone(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...updates }: { id: string; [key: string]: unknown }) =>
+      api.patch(`/deals/${dealId}/construction`, { type: 'milestone', id, ...updates }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+// ── Delete hooks ──
+export function useDeleteBudgetLine(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/deals/${dealId}/construction?type=budget_line&id=${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'dashboard'] });
+    },
+  });
+}
+
+export function useDeleteChangeOrder(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/deals/${dealId}/construction?type=change_order&id=${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+export function useDeleteRFI(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/deals/${dealId}/construction?type=rfi&id=${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
+    },
+  });
+}
+
+export function useDeleteMilestone(dealId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/deals/${dealId}/construction?type=milestone&id=${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['deals', dealId, 'construction'] });
     },

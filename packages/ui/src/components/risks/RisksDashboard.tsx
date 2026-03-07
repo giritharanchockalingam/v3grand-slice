@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRisks, useCreateRisk, useUpdateRisk, type Risk } from '../../hooks/use-risks';
+import { useRisks, useCreateRisk, useUpdateRisk, useDeleteRisk, type Risk } from '../../hooks/use-risks';
 import { usePermissions } from '../../hooks/use-permissions';
 
 const CATEGORIES = ['market', 'construction', 'financial', 'regulatory', 'operational'] as const;
@@ -40,9 +40,15 @@ const SEVERITY_COLORS: Record<string, string> = {
 function RiskRow({
   risk,
   onStatusChange,
+  onEdit,
+  onDelete,
+  canEdit,
 }: {
   risk: Risk;
   onStatusChange: (riskId: string, status: string) => void;
+  onEdit: (risk: Risk) => void;
+  onDelete: (riskId: string) => void;
+  canEdit: boolean;
 }) {
   const severity = getRiskSeverity(risk.likelihood, risk.impact);
   const severityColor = SEVERITY_COLORS[severity];
@@ -66,6 +72,26 @@ function RiskRow({
           <span className={`text-xs px-2 py-0.5 rounded ${IMPACT_COLORS[risk.impact] ?? ''}`}>
             I: {risk.impact}
           </span>
+          {canEdit && (
+            <>
+              <button
+                onClick={() => onEdit(risk)}
+                className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 text-xs"
+                title="Edit risk"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Delete risk "${risk.title}"?`)) onDelete(risk.id);
+                }}
+                className="px-2 py-0.5 rounded border border-red-300 bg-white text-red-600 hover:bg-red-50 text-xs"
+                title="Delete risk"
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>
       <p className="text-xs text-gray-600 mb-2">{risk.description}</p>
@@ -174,8 +200,10 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
   const { data, isLoading, error } = useRisks(dealId);
   const createRisk = useCreateRisk(dealId);
   const updateRisk = useUpdateRisk(dealId);
+  const deleteRisk = useDeleteRisk(dealId);
   const { canEdit } = usePermissions();
   const [showForm, setShowForm] = useState(false);
+  const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'matrix' | 'list'>('overview');
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -203,19 +231,51 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
     filteredRisks = filteredRisks.filter(r => r.status === filterStatus);
   }
 
+  function handleEdit(risk: Risk) {
+    setEditingRisk(risk);
+    setForm({
+      title: risk.title,
+      description: risk.description,
+      category: risk.category,
+      likelihood: risk.likelihood,
+      impact: risk.impact,
+      mitigation: risk.mitigation ?? '',
+      owner: risk.owner ?? '',
+    });
+    setShowForm(true);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title || !form.description) return;
-    createRisk.mutate({
-      ...form,
-      mitigation: form.mitigation || undefined,
-      owner: form.owner || undefined,
-    }, {
-      onSuccess: () => {
-        setShowForm(false);
-        setForm({ title: '', description: '', category: 'market', likelihood: 'medium', impact: 'medium', mitigation: '', owner: '' });
-      },
-    });
+
+    if (editingRisk) {
+      // Update existing risk
+      updateRisk.mutate({
+        riskId: editingRisk.id,
+        ...form,
+        mitigation: form.mitigation || undefined,
+        owner: form.owner || undefined,
+      }, {
+        onSuccess: () => {
+          setShowForm(false);
+          setEditingRisk(null);
+          setForm({ title: '', description: '', category: 'market', likelihood: 'medium', impact: 'medium', mitigation: '', owner: '' });
+        },
+      });
+    } else {
+      // Create new risk
+      createRisk.mutate({
+        ...form,
+        mitigation: form.mitigation || undefined,
+        owner: form.owner || undefined,
+      }, {
+        onSuccess: () => {
+          setShowForm(false);
+          setForm({ title: '', description: '', category: 'market', likelihood: 'medium', impact: 'medium', mitigation: '', owner: '' });
+        },
+      });
+    }
   }
 
   return (
@@ -273,7 +333,15 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
 
         {canEdit && (
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (showForm) {
+                setShowForm(false);
+                setEditingRisk(null);
+                setForm({ title: '', description: '', category: 'market', likelihood: 'medium', impact: 'medium', mitigation: '', owner: '' });
+              } else {
+                setShowForm(true);
+              }
+            }}
             className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
           >
             {showForm ? 'Cancel' : '+ Add Risk'}
@@ -340,7 +408,7 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
               disabled={createRisk.isPending}
               className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 rounded-lg"
             >
-              {createRisk.isPending ? 'Saving...' : 'Save Risk'}
+              {(createRisk.isPending || updateRisk.isPending) ? 'Saving...' : editingRisk ? 'Update Risk' : 'Save Risk'}
             </button>
           </div>
         </form>
@@ -393,7 +461,10 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
                 <RiskRow
                   key={risk.id}
                   risk={risk}
+                  canEdit={canEdit}
                   onStatusChange={(riskId, status) => updateRisk.mutate({ riskId, status })}
+                  onEdit={handleEdit}
+                  onDelete={(riskId) => deleteRisk.mutate(riskId)}
                 />
               ))}
             </div>
@@ -432,6 +503,7 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Owner</th>
                     <th className="px-3 py-2">Created</th>
+                    {canEdit && <th className="px-3 py-2">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -460,6 +532,26 @@ export function RisksDashboard({ dealId }: { dealId: string }) {
                         <td className="px-3 py-2 text-gray-500">
                           {new Date(risk.createdAt).toLocaleDateString()}
                         </td>
+                        {canEdit && (
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleEdit(risk)}
+                                className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`Delete risk "${risk.title}"?`)) deleteRisk.mutate(risk.id);
+                                }}
+                                className="px-2 py-0.5 rounded border border-red-300 bg-white text-red-600 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
