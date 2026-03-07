@@ -32,30 +32,34 @@ import { debtStructuring } from './specialists/debt-structuring';
 import { lpRelations } from './specialists/lp-relations';
 import { exitStrategist } from './specialists/exit-strategist';
 
-/** Agent category groupings for the UI */
+/** Agent category groupings — Big 4 practice area structure */
 export const AGENT_CATEGORIES = [
   {
-    id: 'core-analysis',
-    label: 'Core Analysis',
-    description: 'Market intelligence, deal underwriting, risk assessment, and capital allocation',
+    id: 'tas',
+    label: 'Transaction Advisory Services',
+    shortLabel: 'TAS',
+    description: 'Deal origination, underwriting, market intelligence, and capital allocation — the core IC analysis engine.',
     agents: ['market-analyst', 'deal-underwriter', 'portfolio-risk-officer', 'capital-allocator'],
   },
   {
-    id: 'compliance-legal',
-    label: 'Compliance & Legal',
-    description: 'Regulatory compliance, legal advisory, tax strategy, and forensic auditing',
+    id: 'rag',
+    label: 'Risk Assurance & Governance',
+    shortLabel: 'RA&G',
+    description: 'Regulatory compliance, legal due diligence, tax structuring, and forensic audit — protecting the firm.',
     agents: ['compliance-auditor', 'legal-regulatory', 'tax-strategist', 'forensic-auditor'],
   },
   {
-    id: 'operations',
-    label: 'Operations',
-    description: 'Construction monitoring, revenue optimization, technology, and insurance',
+    id: 'otc',
+    label: 'Operations & Technology Consulting',
+    shortLabel: 'OTC',
+    description: 'Construction oversight, revenue management, PropTech advisory, and asset protection — maximizing NOI.',
     agents: ['construction-monitor', 'revenue-optimizer', 'proptech-advisor', 'insurance-protection'],
   },
   {
-    id: 'strategy',
-    label: 'Strategy',
-    description: 'ESG sustainability, debt structuring, LP relations, and exit planning',
+    id: 'scm',
+    label: 'Strategy & Capital Markets',
+    shortLabel: 'S&CM',
+    description: 'ESG integration, debt structuring, LP relations, and exit planning — long-term value creation.',
     agents: ['esg-analyst', 'debt-structuring', 'lp-relations', 'exit-strategist'],
   },
 ] as const;
@@ -96,13 +100,16 @@ export function getAgent(id: string): AgentDefinition | null {
 
 /** Get all agents as lightweight list items (for the UI catalog) */
 export function getAgentList(): AgentListItem[] {
-  return AGENTS.map(({ id, name, title, description, icon, color, suggestedPrompts }) => ({
+  return AGENTS.map(({ id, name, title, description, icon, color, practiceArea, practiceAreaShort, designation, suggestedPrompts }) => ({
     id,
     name,
     title,
     description,
     icon,
     color,
+    practiceArea,
+    practiceAreaShort,
+    designation,
     suggestedPrompts,
   }));
 }

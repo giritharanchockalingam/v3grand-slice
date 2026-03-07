@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * CFO Agent Hub — Landing page showing all 16 specialist agents organized in 4 categories.
- * Each card links to the agent's dedicated workspace.
+ * IC Agent Hub — Landing page showing all 16 specialist agents organized
+ * in 4 Big 4-style practice areas. Each card links to the agent's workspace.
  */
 
 import { useEffect, useState, useMemo } from 'react';
@@ -56,7 +56,7 @@ export default function AgentsPage() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <p className="text-surface-500">Please log in to access the CFO Agent Hub.</p>
+        <p className="text-surface-500">Please log in to access the IC Agent Hub.</p>
       </div>
     );
   }
@@ -65,9 +65,9 @@ export default function AgentsPage() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-surface-900">CFO Agent Hub</h1>
+        <h1 className="text-2xl font-bold text-surface-900">IC Agent Hub</h1>
         <p className="text-sm text-surface-500 mt-1">
-          16 AI specialist analysts powered by Claude — each an expert in their domain. Click any agent to start a conversation.
+          16 specialist IC analysts organized across 4 practice areas — each with domain expertise, seniority designation, and dedicated tooling.
         </p>
       </div>
 
@@ -116,10 +116,15 @@ export default function AgentsPage() {
         <div className="space-y-12">
           {categorizedAgents.map((category) => (
             <div key={category.id}>
-              {/* Category Header */}
+              {/* Category Header — Big 4 practice area style */}
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-surface-900">{category.label}</h2>
-                <p className="text-sm text-surface-500 mt-1">{category.description}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xs font-bold uppercase tracking-widest text-brand-600 bg-brand-50 border border-brand-200 rounded px-2 py-0.5">
+                    {category.shortLabel}
+                  </span>
+                  <h2 className="text-lg font-semibold text-surface-900">{category.label}</h2>
+                </div>
+                <p className="text-sm text-surface-500 mt-1.5">{category.description}</p>
               </div>
 
               {/* Category Grid - 4 columns */}

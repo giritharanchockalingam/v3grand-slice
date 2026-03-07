@@ -50,6 +50,12 @@ export interface AgentDefinition {
   description: string;
   icon: string; // emoji or icon identifier
   color: string; // tailwind color class
+  /** Big 4-style practice area (e.g. "Transaction Advisory Services") */
+  practiceArea: string;
+  /** Short practice area label (e.g. "TAS") */
+  practiceAreaShort: string;
+  /** Seniority-level designation (e.g. "Senior Director") */
+  designation: string;
   systemPrompt: string;
   toolNames: string[];
   suggestedPrompts: string[];
@@ -73,6 +79,9 @@ export interface AgentListItem {
   description: string;
   icon: string;
   color: string;
+  practiceArea: string;
+  practiceAreaShort: string;
+  designation: string;
   suggestedPrompts: string[];
 }
 

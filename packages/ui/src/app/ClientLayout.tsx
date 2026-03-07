@@ -8,42 +8,46 @@ import { usePathname } from 'next/navigation';
 import { FloatingAgent } from '../components/agent/FloatingAgent';
 import { NavDealsIcon, NavPortfolioIcon, NavAgentIcon } from '../components/icons/PortalIcons';
 
-// Real agent data from the registry
+// Big 4-style agent navigation data
 const NAV_AGENT_CATEGORIES = [
   {
-    name: 'Core Analysis',
+    name: 'Transaction Advisory Services',
+    shortLabel: 'TAS',
     agents: [
-      { id: 'market-analyst', name: 'Market Intel', icon: '🌍' },
-      { id: 'deal-underwriter', name: 'Deal Underwriter', icon: '📊' },
-      { id: 'portfolio-risk-officer', name: 'Risk Officer', icon: '🛡️' },
-      { id: 'capital-allocator', name: 'Capital Allocator', icon: '💰' },
+      { id: 'market-analyst', name: 'Market Intel', icon: '🌍', designation: 'Senior Director' },
+      { id: 'deal-underwriter', name: 'Deal Underwriter', icon: '📊', designation: 'Managing Director' },
+      { id: 'portfolio-risk-officer', name: 'Risk Officer', icon: '🛡️', designation: 'Partner' },
+      { id: 'capital-allocator', name: 'Capital Allocator', icon: '💰', designation: 'Senior Director' },
     ],
   },
   {
-    name: 'Compliance & Legal',
+    name: 'Risk Assurance & Governance',
+    shortLabel: 'RA&G',
     agents: [
-      { id: 'compliance-auditor', name: 'Compliance Auditor', icon: '📋' },
-      { id: 'legal-regulatory', name: 'Legal & Regulatory', icon: '⚖️' },
-      { id: 'tax-strategist', name: 'Tax Strategist', icon: '🏛️' },
-      { id: 'forensic-auditor', name: 'Forensic Auditor', icon: '🔬' },
+      { id: 'compliance-auditor', name: 'Compliance Auditor', icon: '📋', designation: 'Partner' },
+      { id: 'legal-regulatory', name: 'Legal & Regulatory', icon: '⚖️', designation: 'Senior Director' },
+      { id: 'tax-strategist', name: 'Tax Strategist', icon: '🏛️', designation: 'Partner' },
+      { id: 'forensic-auditor', name: 'Forensic Auditor', icon: '🔬', designation: 'Managing Director' },
     ],
   },
   {
-    name: 'Operations',
+    name: 'Operations & Technology Consulting',
+    shortLabel: 'OTC',
     agents: [
-      { id: 'construction-monitor', name: 'Construction Monitor', icon: '🏗️' },
-      { id: 'revenue-optimizer', name: 'Revenue Optimizer', icon: '📈' },
-      { id: 'proptech-advisor', name: 'PropTech Advisor', icon: '💡' },
-      { id: 'insurance-protection', name: 'Insurance & Protection', icon: '🛡️' },
+      { id: 'construction-monitor', name: 'Construction Monitor', icon: '🏗️', designation: 'Director' },
+      { id: 'revenue-optimizer', name: 'Revenue Optimizer', icon: '📈', designation: 'Senior Director' },
+      { id: 'proptech-advisor', name: 'PropTech Advisor', icon: '💡', designation: 'Director' },
+      { id: 'insurance-protection', name: 'Insurance & Protection', icon: '🛡️', designation: 'Senior Manager' },
     ],
   },
   {
-    name: 'Strategy',
+    name: 'Strategy & Capital Markets',
+    shortLabel: 'S&CM',
     agents: [
-      { id: 'esg-analyst', name: 'ESG Analyst', icon: '🌱' },
-      { id: 'debt-structuring', name: 'Debt Structuring', icon: '🏦' },
-      { id: 'lp-relations', name: 'LP Relations', icon: '🤝' },
-      { id: 'exit-strategist', name: 'Exit Strategist', icon: '🎯' },
+      { id: 'esg-analyst', name: 'ESG Analyst', icon: '🌱', designation: 'Director' },
+      { id: 'debt-structuring', name: 'Debt Structuring', icon: '🏦', designation: 'Managing Director' },
+      { id: 'lp-relations', name: 'LP Relations', icon: '🤝', designation: 'Senior Director' },
+      { id: 'exit-strategist', name: 'Exit Strategist', icon: '🎯', designation: 'Partner' },
     ],
   },
 ];
@@ -95,9 +99,12 @@ function AgentsDropdown() {
               <div key={category.name}>
                 <Link
                   href="/agents"
-                  className="block px-4 py-3 text-sm font-semibold text-brand-400 hover:bg-white/5 transition-colors border-l-2 border-brand-500"
+                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-brand-400 hover:bg-white/5 transition-colors border-l-2 border-brand-500"
                   onClick={() => setIsOpen(false)}
                 >
+                  <span className="text-2xs font-bold bg-brand-500/20 text-brand-300 px-1.5 py-0.5 rounded tracking-wider">
+                    {category.shortLabel}
+                  </span>
                   {category.name}
                 </Link>
                 {category.agents.map((agent) => (
@@ -108,7 +115,8 @@ function AgentsDropdown() {
                     onClick={() => setIsOpen(false)}
                   >
                     <span className="text-lg">{agent.icon}</span>
-                    <span>{agent.name}</span>
+                    <span className="flex-1">{agent.name}</span>
+                    <span className="text-2xs text-surface-500 font-medium">{agent.designation}</span>
                   </Link>
                 ))}
                 {idx < NAV_AGENT_CATEGORIES.length - 1 && <div className="h-px bg-white/5 mx-2 my-1" />}
@@ -196,8 +204,11 @@ function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
               <Link
                 href="/agents"
                 onClick={onClose}
-                className="block px-4 py-2 text-xs font-semibold text-brand-400 hover:bg-white/5"
+                className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-brand-400 hover:bg-white/5"
               >
+                <span className="text-2xs font-bold bg-brand-500/20 text-brand-300 px-1 py-0.5 rounded tracking-wider">
+                  {category.shortLabel}
+                </span>
                 {category.name}
               </Link>
               {category.agents.map((agent) => (
@@ -208,7 +219,8 @@ function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
                   className="flex items-center gap-2 px-6 py-2 text-sm text-surface-300 hover:text-white hover:bg-white/5"
                 >
                   <span>{agent.icon}</span>
-                  <span>{agent.name}</span>
+                  <span className="flex-1">{agent.name}</span>
+                  <span className="text-2xs text-surface-500">{agent.designation}</span>
                 </Link>
               ))}
             </div>
