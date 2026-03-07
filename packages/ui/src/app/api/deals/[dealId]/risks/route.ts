@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withRLS } from '@/lib/server/db';
 import { getAuthUser } from '@/lib/server/auth';
-import { getRisksByDeal, createRisk, updateRisk, deleteRisk, insertAuditEntry } from '@v3grand/db';
+import { getRisksByDeal, getRiskSummary, createRisk, updateRisk, deleteRisk, insertAuditEntry } from '@v3grand/db';
 
 export async function GET(
   request: Request,
@@ -12,10 +12,14 @@ export async function GET(
     const user = await getAuthUser(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const risks = await withRLS(user.userId, user.role, (db) =>
-      getRisksByDeal(db, dealId)
-    );
-    return NextResponse.json({ risks });
+    const { risks, summary } = await withRLS(user.userId, user.role, async (db) => {
+      const [allRisks, riskSummary] = await Promise.all([
+        getRisksByDeal(db, dealId),
+        getRiskSummary(db, dealId),
+      ]);
+      return { risks: allRisks, summary: riskSummary };
+    });
+    return NextResponse.json({ risks, summary });
   } catch (err) {
     console.error('GET /api/deals/[id]/risks failed:', err);
     return NextResponse.json({ error: 'Failed to fetch risks' }, { status: 500 });
