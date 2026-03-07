@@ -99,7 +99,8 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
-function formatLargeNumber(n: number): string {
+function formatLargeNumber(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e7) return `${(n / 1e7).toFixed(1)} Cr`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
@@ -108,7 +109,8 @@ function formatLargeNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function pct(v: number, decimals = 1): string {
+function pct(v: number | null | undefined, decimals = 1): string {
+  if (v == null || !Number.isFinite(v)) return '—';
   return (v * 100).toFixed(decimals) + '%';
 }
 
@@ -294,7 +296,7 @@ export function MarketIntelligenceTab({ city, state }: { city?: string; state?: 
             />
             <IndicatorCard
               label="USD/INR"
-              value={`₹${macro.usdInrRate.toFixed(2)}`}
+              value={`₹${(macro.usdInrRate ?? 0).toFixed(2)}`}
               color="text-blue-700"
               meta={macro.indicators?.usdInr}
             />
@@ -441,7 +443,7 @@ export function MarketIntelligenceTab({ city, state }: { city?: string; state?: 
               </div>
             </div>
             <div className="flex items-center gap-4 text-2xs text-surface-400">
-              <span>Cache hit rate: <strong className="text-surface-600">{(health.cacheHitRate * 100).toFixed(0)}%</strong></span>
+              <span>Cache hit rate: <strong className="text-surface-600">{((health.cacheHitRate ?? 0) * 100).toFixed(0)}%</strong></span>
               <span>Checked: {timeAgo(health.lastCheck)}</span>
             </div>
           </div>
