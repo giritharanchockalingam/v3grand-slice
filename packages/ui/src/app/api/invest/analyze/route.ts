@@ -276,7 +276,7 @@ function buildDealPayload(input: InvestWizardInput, userEmail: string) {
       compSet,
     },
     financialAssumptions: {
-      wacc: 0.12, riskFreeRate: 0.065,
+      wacc: 0.11, riskFreeRate: 0.0525,
       equityRatio: input.partnershipType === 'solo' ? 0.5 : 0.4,
       debtRatio: input.partnershipType === 'solo' ? 0.5 : 0.6,
       debtInterestRate: 0.095, debtTenorYears: 15,
@@ -514,6 +514,188 @@ Synthesize all of this into a single verdict. Respond with ONLY valid JSON.`,
       },
       warnings: ['The automatic summary could not be generated — please review each agent\'s analysis directly.'],
     };
+  }
+}
+
+/**
+ * Use Claude to extract structured construction data from agent narratives
+ * and persist budget lines, milestones, and change orders to the DB.
+ */
+async function populateConstructionFromAgents(
+  db: ReturnType<typeof getDb>,
+  dealId: string,
+  input: InvestWizardInput,
+  agentResults: AgentResult[],
+) {
+  const constructionAgent = agentResults.find(r => r.agentId === 'construction-monitor');
+  const underwriterAgent = agentResults.find(r => r.agentId === 'deal-underwriter');
+  const legalAgent = agentResults.find(r => r.agentId === 'legal-regulatory');
+
+  // Combine relevant agent narratives
+  const agentContext = [
+    constructionAgent?.reply ? `Construction Monitor:\n${constructionAgent.reply}` : '',
+    underwriterAgent?.reply ? `Underwriter (capex context):\n${underwriterAgent.reply.slice(0, 1500)}` : '',
+    legalAgent?.reply ? `Legal (permits context):\n${legalAgent.reply.slice(0, 800)}` : '',
+  ].filter(Boolean).join('\n\n---\n\n');
+
+  if (!agentContext) return;
+
+  const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+  const totalBudgetCr = input.investmentAmountCr * 0.85; // 85% goes to construction
+
+  const resp = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2048,
+    system: `You are a construction cost estimator for Indian hotel projects. Extract structured construction data from the agent analyses below. Use realistic Indian hotel construction costs.
+
+Return ONLY valid JSON in this exact format:
+{
+  "budgetLines": [
+    { "costCode": "CIV-001", "description": "Foundation & Piling", "category": "civil", "amountCr": 5.0, "actualSpendPct": 0 },
+    ...
+  ],
+  "milestones": [
+    { "name": "Land Acquisition & Clearances", "description": "...", "targetMonthsFromNow": 0, "status": "completed", "percentComplete": 100 },
+    ...
+  ]
+}
+
+Rules:
+- Budget lines must sum to approximately ₹${totalBudgetCr.toFixed(1)} Cr
+- Use realistic Indian cost codes: CIV (civil), MEP (mechanical/electrical/plumbing), FIN (finishes), LND (land), SOF (soft costs), FFE (furniture/fixtures)
+- For ${input.dealType === 'new_build' ? 'new builds' : input.dealType}: include all typical phases
+- ${input.roomCount} rooms, ${input.starRating}-star ${input.propertyType} in ${input.city}, ${input.state}
+- Milestones should reflect realistic Indian hotel construction timeline
+- For new builds: ~24-36 months construction. For renovation: ~12-18 months
+- Set actualSpendPct based on lifecycle: pre-construction = 0-10%, construction = varies by phase`,
+    messages: [{
+      role: 'user',
+      content: `Here is the deal context and agent analysis:\n\nProperty: ${input.propertyName} — ${input.roomCount} rooms, ${input.starRating}-star ${input.propertyType}\nLocation: ${input.city}, ${input.state}\nTotal Investment: ₹${input.investmentAmountCr} Cr (construction budget ~₹${totalBudgetCr.toFixed(1)} Cr)\nDeal Type: ${input.dealType}\n\nAgent Analyses:\n${agentContext}\n\nGenerate realistic construction budget lines and milestones. Respond with ONLY valid JSON.`,
+    }],
+  });
+
+  const text = resp.content.filter(b => b.type === 'text').map(b => 'text' in b ? (b as { text: string }).text : '').join('');
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return;
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  const { createBudgetLine, createMilestone } = await import('@v3grand/db');
+
+  // Persist budget lines
+  for (const bl of (parsed.budgetLines ?? [])) {
+    const amountPaise = Math.round(bl.amountCr * 1e7); // Cr to base units
+    await createBudgetLine(db, {
+      dealId,
+      costCode: bl.costCode,
+      description: bl.description,
+      category: bl.category,
+      originalAmount: amountPaise,
+      currentBudget: amountPaise,
+    });
+  }
+
+  // Persist milestones
+  for (const ms of (parsed.milestones ?? [])) {
+    const targetDate = new Date();
+    targetDate.setMonth(targetDate.getMonth() + (ms.targetMonthsFromNow ?? 0));
+    await createMilestone(db, {
+      dealId,
+      name: ms.name,
+      description: ms.description ?? ms.name,
+      targetDate: targetDate.toISOString().split('T')[0],
+      status: ms.status ?? 'not-started',
+      percentComplete: ms.percentComplete ?? 0,
+    });
+  }
+}
+
+/**
+ * Use Claude to extract structured risk data from agent narratives
+ * and persist risks to the DB.
+ */
+async function populateRisksFromAgents(
+  db: ReturnType<typeof getDb>,
+  dealId: string,
+  input: InvestWizardInput,
+  agentResults: AgentResult[],
+) {
+  // Gather risk-relevant agent narratives
+  const riskAgent = agentResults.find(r => r.agentId === 'portfolio-risk-officer');
+  const constructionAgent = agentResults.find(r => r.agentId === 'construction-monitor');
+  const legalAgent = agentResults.find(r => r.agentId === 'legal-regulatory');
+  const marketAgent = agentResults.find(r => r.agentId === 'market-analyst');
+  const esgAgent = agentResults.find(r => r.agentId === 'esg-analyst');
+  const insuranceAgent = agentResults.find(r => r.agentId === 'insurance-protection');
+
+  const agentContext = [
+    riskAgent?.reply ? `Risk Officer:\n${riskAgent.reply}` : '',
+    constructionAgent?.reply ? `Construction Monitor:\n${constructionAgent.reply.slice(0, 1200)}` : '',
+    legalAgent?.reply ? `Legal:\n${legalAgent.reply.slice(0, 1000)}` : '',
+    marketAgent?.reply ? `Market Analyst:\n${marketAgent.reply.slice(0, 1000)}` : '',
+    esgAgent?.reply ? `ESG:\n${esgAgent.reply.slice(0, 800)}` : '',
+    insuranceAgent?.reply ? `Insurance:\n${insuranceAgent.reply.slice(0, 800)}` : '',
+  ].filter(Boolean).join('\n\n---\n\n');
+
+  if (!agentContext) return;
+
+  const Anthropic = (await import('@anthropic-ai/sdk')).default;
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+
+  const resp = await client.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2048,
+    system: `You are a risk analyst extracting risks from IC agent analyses for an Indian hotel investment. Identify ALL distinct risks mentioned by any agent.
+
+Return ONLY valid JSON in this exact format:
+{
+  "risks": [
+    {
+      "title": "Short descriptive title",
+      "description": "Detailed risk description with specific numbers/context from agent analysis",
+      "category": "market|construction|financial|regulatory|operational",
+      "likelihood": "low|medium|high",
+      "impact": "low|medium|high",
+      "mitigation": "Specific mitigation strategy recommended by agents",
+      "owner": "Role responsible (e.g. CFO, Project Manager, Legal Counsel)",
+      "status": "open|mitigated"
+    }
+  ]
+}
+
+Rules:
+- Extract 6-12 distinct risks across all categories
+- Use actual data/numbers from agent analyses (don't fabricate specifics)
+- Every risk must have a mitigation strategy (from agent recommendations or industry best practice)
+- Assign likelihood/impact based on agent severity language
+- For ${input.city}, ${input.state}: include location-specific risks (weather, regulatory, market)
+- ${input.starRating}-star ${input.propertyType}: include segment-specific risks`,
+    messages: [{
+      role: 'user',
+      content: `Deal: ${input.propertyName} — ${input.roomCount} rooms, ${input.starRating}-star ${input.propertyType} in ${input.city}, ${input.state}\nInvestment: ₹${input.investmentAmountCr} Cr | Type: ${input.dealType}\n\nAgent Analyses:\n${agentContext}\n\nExtract all identifiable risks. Respond with ONLY valid JSON.`,
+    }],
+  });
+
+  const text = resp.content.filter(b => b.type === 'text').map(b => 'text' in b ? (b as { text: string }).text : '').join('');
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return;
+
+  const parsed = JSON.parse(jsonMatch[0]);
+  const { createRisk } = await import('@v3grand/db');
+
+  for (const risk of (parsed.risks ?? [])) {
+    await createRisk(db, {
+      dealId,
+      title: risk.title,
+      description: risk.description,
+      category: risk.category ?? 'operational',
+      likelihood: risk.likelihood ?? 'medium',
+      impact: risk.impact ?? 'medium',
+      mitigation: risk.mitigation,
+      owner: risk.owner ?? 'CFO',
+      createdBy: 'ic-agent-analysis',
+    });
   }
 }
 
@@ -770,6 +952,19 @@ export async function POST(request: Request) {
       });
     } catch (recErr) {
       console.error('Failed to persist recommendation (non-fatal):', recErr);
+    }
+
+    // Step 4: Auto-populate Construction & Risk data from agent analysis
+    try {
+      await populateConstructionFromAgents(db, deal.id, input, agentResults);
+    } catch (constErr) {
+      console.error('Failed to auto-populate construction data (non-fatal):', constErr);
+    }
+
+    try {
+      await populateRisksFromAgents(db, deal.id, input, agentResults);
+    } catch (riskErr) {
+      console.error('Failed to auto-populate risk data (non-fatal):', riskErr);
     }
 
     return NextResponse.json(response);
