@@ -136,11 +136,13 @@ export function buildProForma(input: ProFormaInput): ProFormaOutput {
     if (cumCF >= equityInvestment) { paybackYear = i; break; }
   }
 
-  // Average DSCR
-  const dscrValues = years
-    .filter((_, i) => i < n)
-    .map(y => y.ebitda / annualDebtService);
-  const avgDSCR = dscrValues.reduce((a, b) => a + b, 0) / dscrValues.length;
+  // Average DSCR (guard against zero debt service → Infinity)
+  const avgDSCR = annualDebtService > 0
+    ? years
+        .filter((_, i) => i < n)
+        .map(y => y.ebitda / annualDebtService)
+        .reduce((a, b) => a + b, 0) / Math.min(n, years.length)
+    : 0;
 
   return {
     scenarioKey,

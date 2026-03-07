@@ -348,14 +348,18 @@ export function FeasibilityWorkbench({ dealId }: { dealId: string }) {
           <h3 className="section-title mb-4">Expected return (probability-weighted)</h3>
           <p className="text-sm text-surface-500 mb-3">Weights: Bear {((scenariosData.probabilityWeights?.bear ?? 0) * 100).toFixed(0)}% / Base {((scenariosData.probabilityWeights?.base ?? 0) * 100).toFixed(0)}% / Bull {((scenariosData.probabilityWeights?.bull ?? 0) * 100).toFixed(0)}%.</p>
           <div className="grid grid-cols-2 gap-4">
-            <div className="metric-card">
-              <p className="stat-label">Expected IRR</p>
-              <p className="stat-value text-brand-700">{(scenariosData.expectedIRR * 100).toFixed(1)}%</p>
-            </div>
-            <div className="metric-card">
-              <p className="stat-label">Expected NPV</p>
-              <p className="stat-value text-brand-700">{(scenariosData.expectedNPV / 1e7).toFixed(1)} Cr</p>
-            </div>
+            {scenariosData.expectedIRR != null && (
+              <div className="metric-card">
+                <p className="stat-label">Expected IRR</p>
+                <p className="stat-value text-brand-700">{((scenariosData.expectedIRR ?? 0) * 100).toFixed(1)}%</p>
+              </div>
+            )}
+            {scenariosData.expectedNPV != null && (
+              <div className="metric-card">
+                <p className="stat-label">Expected NPV</p>
+                <p className="stat-value text-brand-700">{((scenariosData.expectedNPV ?? 0) / 1e7).toFixed(1)} Cr</p>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -380,12 +384,12 @@ export function FeasibilityWorkbench({ dealId }: { dealId: string }) {
               <tbody>
                 {capitalStructureData.scenarios.map((s, i) => (
                   <tr key={i} className="border-b border-surface-100">
-                    <td className="py-2 font-medium text-surface-800">{s.debtPct}% / {s.equityPct}%</td>
-                    <td className="py-2 text-right text-surface-700">{(s.irr * 100).toFixed(1)}%</td>
-                    <td className="py-2 text-right text-surface-700">{(s.npv / 1e7).toFixed(1)}</td>
-                    <td className="py-2 text-right text-surface-700">{s.avgDSCR.toFixed(2)}</td>
-                    <td className="py-2 text-surface-600">{s.riskLevel}</td>
-                    <td className="py-2 text-surface-600">{s.recommendation}</td>
+                    <td className="py-2 font-medium text-surface-800">{s.debtPct ?? 0}% / {s.equityPct ?? 0}%</td>
+                    <td className="py-2 text-right text-surface-700">{((s.irr ?? 0) * 100).toFixed(1)}%</td>
+                    <td className="py-2 text-right text-surface-700">{((s.npv ?? 0) / 1e7).toFixed(1)}</td>
+                    <td className="py-2 text-right text-surface-700">{(s.avgDSCR ?? 0).toFixed(2)}</td>
+                    <td className="py-2 text-surface-600">{s.riskLevel ?? '—'}</td>
+                    <td className="py-2 text-surface-600">{s.recommendation ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -404,7 +408,7 @@ export function FeasibilityWorkbench({ dealId }: { dealId: string }) {
               <li key={i} className="flex justify-between items-start text-sm">
                 <span className="text-surface-700">{c.name}</span>
                 <span className={c.passed ? 'text-green-600' : 'text-surface-400'}>
-                  {c.current != null ? (c.threshold < 1 ? (c.current * 100).toFixed(1) + '%' : c.current) : 'TBD'} {!c.passed && c.current != null && '(below threshold)'}
+                  {c.current != null ? (c.threshold < 1 ? ((c.current ?? 0) * 100).toFixed(1) + '%' : c.current) : 'TBD'} {!c.passed && c.current != null && '(below threshold)'}
                 </span>
               </li>
             ))}
