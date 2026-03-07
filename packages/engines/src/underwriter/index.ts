@@ -53,8 +53,8 @@ export function buildProForma(input: ProFormaInput): ProFormaOutput {
     // Keys available this year
     const keys = phase1Keys + (phase2Active && y >= PHASE2_START_YEAR ? phase2Keys : 0);
 
-    // Occupancy: ramp from array, cap at scenario stabilized
-    const rampOcc = mkt.occupancyRamp[y] ?? mkt.occupancyRamp[mkt.occupancyRamp.length - 1];
+    // Occupancy: ramp from array (0-indexed), cap at scenario stabilized
+    const rampOcc = mkt.occupancyRamp[y - 1] ?? mkt.occupancyRamp[mkt.occupancyRamp.length - 1];
     const occupancy = Math.min(rampOcc, scenario.occupancyStabilized);
 
     // ADR: starts at base, grows toward stabilized, then inflation
@@ -70,20 +70,32 @@ export function buildProForma(input: ProFormaInput): ProFormaOutput {
     const roomRevenue = revpar * keys * 365;
     const totalRevenue = roomRevenue / mkt.revenueMix.rooms; // rooms as fraction of total
 
-    // Costs
-    const departmentalCost = totalRevenue * totalOpexPct;
-    const gop = totalRevenue - departmentalCost;
-    const gopMargin = totalRevenue > 0 ? gop / totalRevenue : 0;
-
-    // Management fees and reserves below GOP
-    const mgmtFee = totalRevenue * fin.managementFeePct;
-    const incentiveFee = gop * fin.incentiveFeePct;
-    const ffneReserve = totalRevenue * fin.ffAndEReservePct;
-    const ebitda = gop - mgmtFee - incentiveFee - ffneReserve;
-    const ebitdaMargin = totalRevenue > 0 ? ebitda / totalRevenue : 0;
+    // Costs — if opex departments are defined, compute bottom-up;
+    // otherwise fall back to the scenario's explicit EBITDA margin.
+    let gop: number, gopMargin: number, ebitda: number, ebitdaMargin: number;
+    if (totalOpexPct > 0) {
+      // Bottom-up: departmental costs → GOP → management fees → EBITDA
+      const departmentalCost = totalRevenue * totalOpexPct;
+      gop = totalRevenue - departmentalCost;
+      gopMargin = totalRevenue > 0 ? gop / totalRevenue : 0;
+      const mgmtFee = totalRevenue * fin.managementFeePct;
+      const incentiveFee = gop * fin.incentiveFeePct;
+      const ffneReserve = totalRevenue * fin.ffAndEReservePct;
+      ebitda = gop - mgmtFee - incentiveFee - ffneReserve;
+      ebitdaMargin = totalRevenue > 0 ? ebitda / totalRevenue : 0;
+    } else {
+      // Top-down: use scenario's explicit EBITDA margin when opex is not modelled
+      ebitdaMargin = scenario.ebitdaMargin;
+      ebitda = totalRevenue * ebitdaMargin;
+      // Approximate GOP as EBITDA + management/incentive/FF&E so downstream is consistent
+      gopMargin = ebitdaMargin + fin.managementFeePct + fin.ffAndEReservePct;
+      gop = totalRevenue * gopMargin;
+    }
 
     // After-tax free cash flow to equity
-    const taxableIncome = ebitda - (debtDrawdown > 0 ? debtDrawdown * r : 0);
+    // Interest expense based on outstanding debt at start of year (declining balance)
+    const interestExpense = debtByYear[y - 1] * r;
+    const taxableIncome = ebitda - interestExpense;
     const tax = Math.max(0, taxableIncome * fin.taxRate);
     const fcfe = ebitda - tax - annualDebtService;
 
@@ -110,7 +122,8 @@ export function buildProForma(input: ProFormaInput): ProFormaOutput {
     years[9].fcfe + exitEquity,
   ];
 
-  const irr = calcIRR(cashFlows);
+  const rawIrr = calcIRR(cashFlows);
+  const irr = Number.isNaN(rawIrr) ? 0 : rawIrr;
   const npv = calcNPV(cashFlows, fin.wacc);
   const totalPositiveCF = cashFlows.filter(cf => cf > 0).reduce((a, b) => a + b, 0);
   const equityMultiple = equityInvestment > 0 ? totalPositiveCF / equityInvestment : 0;
