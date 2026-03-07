@@ -163,7 +163,7 @@ export default function DealDashboardPage() {
                 )}
               </div>
               <div className="mt-4">
-                <PartnerWalkthrough data={data} />
+                <PartnerWalkthrough data={data} onNavigateTab={(tabKey) => setTab(tabKey as TabKey)} />
               </div>
             </div>
 
@@ -226,6 +226,9 @@ export default function DealDashboardPage() {
           </button>
         </div>
       )}
+
+      {/* ────── TAB CONTENT (scrolled to by CFO walkthrough) ────── */}
+      <div id="deal-tab-content" />
 
       {/* ────── OVERVIEW TAB ────── */}
       {tab === 'overview' && (

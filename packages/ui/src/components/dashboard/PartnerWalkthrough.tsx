@@ -45,13 +45,68 @@ function splitIntoSentences(text: string): string[] {
   return merged;
 }
 
+// Section marker parsing for visual navigation
+type TabKey = 'overview' | 'underwriting' | 'construction' | 'risks' | 'assumptions' | 'feasibility' | 'market-intel' | 'sensitivity' | 'revaluation' | 'audit';
+
+interface ParsedSentence {
+  text: string;
+  tabKey?: TabKey;
+}
+
+/**
+ * Parse narrative into sentences, extracting [SECTION:xxx] markers.
+ * Each sentence carries the tab it belongs to (inherited from the last marker).
+ */
+function parseNarrativeWithSections(text: string): ParsedSentence[] {
+  // First, split by section markers to get sections
+  const parts = text.split(/\[SECTION:([\w-]+)\]/);
+  // parts alternates: text, tabKey, text, tabKey, text ...
+  const parsed: ParsedSentence[] = [];
+  let currentTab: TabKey | undefined;
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      // This is a tab key
+      currentTab = parts[i].trim() as TabKey;
+      continue;
+    }
+    // This is text content — split into sentences
+    const sentences = splitIntoSentences(parts[i]);
+    for (const s of sentences) {
+      parsed.push({ text: s, tabKey: currentTab });
+    }
+  }
+  return parsed;
+}
+
+/** Strip section markers from text for display/TTS */
+function stripSectionMarkers(text: string): string {
+  return text.replace(/\[SECTION:[\w-]+\]\s*/g, '').trim();
+}
+
+/** Human-readable labels for each tab section shown in progress indicator */
+const SECTION_LABELS: Record<TabKey, string> = {
+  'overview': 'Overview',
+  'underwriting': 'Financials',
+  'construction': 'Construction',
+  'risks': 'Risk Assessment',
+  'assumptions': 'Assumptions',
+  'feasibility': 'Feasibility',
+  'market-intel': 'Market Intel',
+  'sensitivity': 'Stress Test',
+  'revaluation': 'Revaluation',
+  'audit': 'Audit',
+};
+
 export interface PartnerWalkthroughProps {
   data: DealDashboardView | null;
   className?: string;
   compact?: boolean;
+  /** Called when the CFO briefing wants to navigate to a dashboard tab */
+  onNavigateTab?: (tabKey: string) => void;
 }
 
-export function PartnerWalkthrough({ data, className = '', compact = false }: PartnerWalkthroughProps) {
+export function PartnerWalkthrough({ data, className = '', compact = false, onNavigateTab }: PartnerWalkthroughProps) {
   const [playing, setPlaying] = useState(false);
   const [showScript, setShowScript] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -61,11 +116,13 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
   const [language, setLanguage] = useState<Language>('en');
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [currentSentence, setCurrentSentence] = useState(-1);
-  const sentenceQueueRef = useRef<string[]>([]);
+  const [currentSection, setCurrentSection] = useState<string | null>(null);
+  const sentenceQueueRef = useRef<ParsedSentence[]>([]);
   const sentenceIndexRef = useRef(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const isStoppedRef = useRef(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
+  const lastNavigatedTabRef = useRef<string | null>(null);
 
   const dealId = data?.deal?.id;
 
@@ -88,25 +145,44 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
     setPlaying(false);
     setPaused(false);
     setCurrentSentence(-1);
+    setCurrentSection(null);
     sentenceIndexRef.current = 0;
+    lastNavigatedTabRef.current = null;
   }, []);
 
-  // Speak sentence by sentence with natural pauses
-  const speakSentence = useCallback((sentences: string[], index: number) => {
+  // Speak sentence by sentence with natural pauses and tab navigation
+  const speakSentence = useCallback((sentences: ParsedSentence[], index: number) => {
     if (isStoppedRef.current || index >= sentences.length) {
       setPlaying(false);
       setPaused(false);
       setCurrentSentence(-1);
+      setCurrentSection(null);
+      lastNavigatedTabRef.current = null;
       return;
     }
 
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
-    const sentence = sentences[index];
+    const parsed = sentences[index];
     setCurrentSentence(index);
     sentenceIndexRef.current = index;
 
-    const u = new SpeechSynthesisUtterance(sentence);
+    // Navigate to the tab if this sentence starts a new section
+    if (parsed.tabKey && parsed.tabKey !== lastNavigatedTabRef.current) {
+      lastNavigatedTabRef.current = parsed.tabKey;
+      setCurrentSection(parsed.tabKey);
+      onNavigateTab?.(parsed.tabKey);
+
+      // Scroll the tab content into view after a short delay for the tab to render
+      setTimeout(() => {
+        const tabContent = document.getElementById('deal-tab-content');
+        if (tabContent) {
+          tabContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 200);
+    }
+
+    const u = new SpeechSynthesisUtterance(parsed.text);
     const langCfg = LANGUAGE_CONFIG[language];
 
     // Natural CFO voice settings — slower, deeper, more authoritative
@@ -128,7 +204,11 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
     u.onend = () => {
       if (isStoppedRef.current) return;
       // Add a natural pause between sentences (300-600ms depending on punctuation)
-      const pauseMs = sentence.endsWith('?') ? 500 : sentence.endsWith('!') ? 450 : 350;
+      // Longer pause (800ms) when transitioning between sections
+      const nextParsed = index + 1 < sentences.length ? sentences[index + 1] : null;
+      const isSectionTransition = nextParsed?.tabKey && nextParsed.tabKey !== parsed.tabKey;
+      const basePause = parsed.text.endsWith('?') ? 500 : parsed.text.endsWith('!') ? 450 : 350;
+      const pauseMs = isSectionTransition ? 800 : basePause;
       setTimeout(() => {
         if (!isStoppedRef.current) {
           speakSentence(sentences, index + 1);
@@ -143,21 +223,22 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
 
     utteranceRef.current = u;
     window.speechSynthesis.speak(u);
-  }, [language]);
+  }, [language, onNavigateTab]);
 
   const speakNarrative = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     window.speechSynthesis.cancel();
     isStoppedRef.current = false;
+    lastNavigatedTabRef.current = null;
 
-    const sentences = splitIntoSentences(text);
-    sentenceQueueRef.current = sentences;
+    const parsed = parseNarrativeWithSections(text);
+    sentenceQueueRef.current = parsed;
     sentenceIndexRef.current = 0;
 
     setPlaying(true);
     setPaused(false);
-    speakSentence(sentences, 0);
+    speakSentence(parsed, 0);
   }, [speakSentence]);
 
   const generateAndPlay = useCallback(async (forceLang?: Language) => {
@@ -400,10 +481,15 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
         )}
       </div>
 
-      {/* Progress indicator */}
+      {/* Progress indicator with section label */}
       {playing && sentenceQueueRef.current.length > 0 && (
         <div className="mt-2 flex items-center gap-2">
-          <div className="flex-1 h-1 bg-surface-200 rounded-full overflow-hidden">
+          {currentSection && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 font-semibold uppercase tracking-wider whitespace-nowrap animate-pulse">
+              {SECTION_LABELS[currentSection as TabKey] ?? currentSection}
+            </span>
+          )}
+          <div className="flex-1 h-1.5 bg-surface-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-brand-500 rounded-full transition-all duration-500"
               style={{ width: `${((currentSentence + 1) / sentenceQueueRef.current.length) * 100}%` }}
@@ -428,7 +514,7 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 font-medium">AI Generated</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-100 text-surface-600 font-medium">{langCfg.label}</span>
           </div>
-          <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">{narrative}</p>
+          <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">{stripSectionMarkers(narrative)}</p>
         </div>
       )}
       {showScript && !narrative && !loading && (
