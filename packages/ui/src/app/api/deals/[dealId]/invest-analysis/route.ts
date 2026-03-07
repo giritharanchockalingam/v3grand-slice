@@ -6,18 +6,19 @@ import { getAuthUser } from '@/lib/server/auth';
 import { getLatestInvestAnalysis } from '@v3grand/db';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dealId: string }> },
 ) {
   try {
-    const user = await getAuthUser();
+    const { dealId } = await params;
+    const user = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { dealId } = await params;
-    const db = withRLS(user.id);
-    const analysis = await getLatestInvestAnalysis(db, dealId);
+    const analysis = await withRLS(user.userId, user.role, async (db) => {
+      return getLatestInvestAnalysis(db, dealId);
+    });
 
     if (!analysis) {
       return NextResponse.json({ ok: false, error: 'No IC analysis found for this deal' }, { status: 404 });
