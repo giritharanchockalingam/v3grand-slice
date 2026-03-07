@@ -1,65 +1,44 @@
 import { NextResponse } from 'next/server';
+import { getAllMacroIndicators, invalidateAllCache } from '@/lib/server/macro-data';
 
 /**
  * GET /api/market/macro
- * Returns India macro economic indicators for hotel investment analysis.
- * In production, this would aggregate from RBI, MOSPI, World Bank, FRED APIs.
- * Currently returns curated data based on latest published figures (Mar 2026).
+ *
+ * Returns India macro indicators sourced LIVE from authoritative APIs:
+ *   USD/INR  → FRED DEXINUS → Frankfurter → Open ExchangeRate API
+ *   Bond 10Y → FRED INDIRLTLT01STM
+ *   Repo Rate → API Ninjas → World Bank
+ *   CPI      → API Ninjas → World Bank
+ *   GDP      → World Bank → FRED
+ *   Hotel    → HVS (manual; no free API)
+ *
+ * Intelligent caching: FX 15 min, bonds 1 hr, repo 24 hr, CPI 7 d, GDP 30 d.
+ * Stale-while-revalidate: serves stale data while refreshing in background.
  */
-export async function GET() {
-  const now = new Date().toISOString();
-  const asOf = '2026-02';
+export async function GET(request: Request) {
+  try {
+    // Check if force-refresh is requested via ?refresh=true
+    const url = new URL(request.url);
+    if (url.searchParams.get('refresh') === 'true') {
+      invalidateAllCache();
+    }
 
-  return NextResponse.json({
-    ok: true,
-    data: {
-      repoRate: 5.25,
-      cpi: 2.75,
-      gdpGrowthRate: 7.40,
-      bondYield10Y: 6.72,
-      hotelSupplyGrowthPct: 5.20,
-      usdInrRate: 91.99,
-      inflationTrend: 'declining' as const,
-      source: 'fallback' as const,
-      fetchedAt: now,
-      indicators: {
-        repoRate: {
-          value: 5.25,
-          asOfDate: asOf,
-          source: 'RBI MPC — Feb 6, 2026 (held at 5.25%)',
-          sourceType: 'official' as const,
-        },
-        cpi: {
-          value: 2.75,
-          asOfDate: '2026-01',
-          source: 'MOSPI CPI Report — Jan 2026 (new base year)',
-          sourceType: 'official' as const,
-        },
-        gdpGrowth: {
-          value: 7.40,
-          asOfDate: 'FY2025-26 AE',
-          source: 'NSO Advance Estimate — Feb 2026',
-          sourceType: 'official' as const,
-        },
-        bondYield10Y: {
-          value: 6.72,
-          asOfDate: asOf,
-          source: 'RBI G-Sec Benchmark 10Y',
-          sourceType: 'official' as const,
-        },
-        usdInr: {
-          value: 91.99,
-          asOfDate: '2026-03-06',
-          source: 'RBI Reference Rate — Mar 6, 2026 (Trading Economics)',
-          sourceType: 'official' as const,
-        },
-        hotelSupplyGrowth: {
-          value: 5.20,
-          asOfDate: '2025',
-          source: 'HVS India Hotel Survey 2025-26',
-          sourceType: 'official' as const,
-        },
+    const data = await getAllMacroIndicators();
+
+    return NextResponse.json({
+      ok: true,
+      data,
+    }, {
+      headers: {
+        // Allow browser caching for 60s, CDN for 300s, stale-while-revalidate for 600s
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600, max-age=60',
       },
-    },
-  });
+    });
+  } catch (err) {
+    console.error('GET /api/market/macro failed:', err);
+    return NextResponse.json(
+      { ok: false, error: 'Failed to fetch macro indicators' },
+      { status: 500 },
+    );
+  }
 }
