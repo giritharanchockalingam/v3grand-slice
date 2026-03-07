@@ -200,15 +200,16 @@ export default function DealDashboardPage() {
 
       {/* ── Tab Bar ── */}
       <div className="elevated-card rounded-b-none border-b-0">
-        <div className="flex gap-0 overflow-x-auto px-1 sm:px-2 -mx-0 scrollbar-hide">
+        <div className="flex w-full overflow-x-auto scrollbar-hide">
           {TABS.filter(t => !t.requiresConstruction || showConstruction).map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={tab === t.key ? 'tab-item-active' : 'tab-item'}
             >
-              <t.Icon className="mr-1.5 w-4 h-4 flex-shrink-0" />
-              {t.label}
+              <t.Icon className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden sm:inline">{t.label}</span>
+              <span className="sm:hidden">{t.label.split(' ')[0]}</span>
             </button>
           ))}
         </div>

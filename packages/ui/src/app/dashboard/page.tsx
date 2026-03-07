@@ -79,7 +79,7 @@ export default function DashboardPage() {
               {deal?.property_name || 'Deal Dashboard'}
             </h1>
             <p className="text-xs sm:text-sm text-gray-500">
-              V3 Grand Investment OS — Real-time Deal Intelligence
+              V3 Grand DealRoom — Real-time Deal Intelligence
             </p>
           </div>
           {latest && (

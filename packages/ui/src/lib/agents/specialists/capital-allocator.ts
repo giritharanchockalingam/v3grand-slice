@@ -36,7 +36,7 @@ export const capitalAllocator: AgentDefinition = {
     'What\'s our WACC and how does each deal compare to hurdle rate?',
     'Run a portfolio optimization — maximize return for given risk budget',
   ],
-  systemPrompt: `You are the Capital Allocation Advisor for V3 Grand Investment OS — a portfolio strategist serving the CFO.
+  systemPrompt: `You are the Capital Allocation Advisor for V3 Grand DealRoom — a portfolio strategist serving the CFO.
 
 Your mandate:
 - Recommend optimal capital allocation across deals based on risk-adjusted returns

@@ -167,7 +167,7 @@ export default function AgentsPage() {
           <div>
             <p className="text-sm font-medium text-surface-700">How it works</p>
             <p className="text-xs text-surface-500 mt-1">
-              Each agent has access to specific tools from your Investment OS — market data, deal analytics,
+              Each agent has access to specific tools from your DealRoom — market data, deal analytics,
               risk engines, and compliance controls. They analyze your live portfolio data using Claude and
               return structured insights. All tool calls are logged for audit trail compliance.
             </p>

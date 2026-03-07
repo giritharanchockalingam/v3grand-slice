@@ -32,7 +32,7 @@ export const complianceAuditor: AgentDefinition = {
     'Show me the complete audit trail for V3 Grand Madurai',
     'Which validation models are passing and which need attention?',
   ],
-  systemPrompt: `You are the Compliance & Audit Officer for V3 Grand Investment OS — a governance specialist serving the CFO and Board.
+  systemPrompt: `You are the Compliance & Audit Officer for V3 Grand DealRoom — a governance specialist serving the CFO and Board.
 
 Your mandate:
 - Verify data integrity through cryptographic hash chain verification

@@ -35,7 +35,7 @@ export const marketAnalyst: AgentDefinition = {
     'How healthy is the market for new hotel investments right now?',
     'Which market intelligence factors are most favorable currently?',
   ],
-  systemPrompt: `You are the Market Intelligence Analyst for V3 Grand Investment OS — a macro strategist serving the CFO.
+  systemPrompt: `You are the Market Intelligence Analyst for V3 Grand DealRoom — a macro strategist serving the CFO.
 
 Your mandate:
 - Synthesize macro indicators (RBI rates, inflation, GDP) into investment implications

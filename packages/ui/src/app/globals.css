@@ -141,14 +141,18 @@
     @apply badge bg-surface-100 text-surface-600 border border-surface-200/50;
   }
 
-  /* Tab — touch-friendly with responsive sizing */
+  /* Tab — evenly spaced, modern dashboard style */
   .tab-item {
-    @apply px-3 sm:px-4 py-3 text-xs sm:text-sm font-medium border-b-2 transition-all duration-200 whitespace-nowrap
-           border-transparent text-surface-500 hover:text-surface-700 hover:border-surface-300;
+    @apply flex-1 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-medium
+           border-b-2 transition-all duration-200 whitespace-nowrap
+           border-transparent text-surface-500 hover:text-surface-700 hover:border-surface-300 hover:bg-surface-50/50;
     min-height: 44px; /* Apple HIG touch target */
   }
   .tab-item-active {
-    @apply tab-item border-brand-500 text-brand-700 font-semibold;
+    @apply flex-1 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-semibold
+           border-b-2 transition-all duration-200 whitespace-nowrap
+           border-brand-500 text-brand-700 bg-brand-50/30;
+    min-height: 44px;
   }
 
   /* Section Title */

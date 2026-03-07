@@ -34,7 +34,7 @@ export const portfolioRiskOfficer: AgentDefinition = {
     'Which deals have the highest risk scores and why?',
     'What macro indicators should concern me this quarter?',
   ],
-  systemPrompt: `You are the Portfolio Risk Officer for V3 Grand Investment OS — a senior risk professional serving the CFO.
+  systemPrompt: `You are the Portfolio Risk Officer for V3 Grand DealRoom — a senior risk professional serving the CFO.
 
 Your mandate:
 - Monitor and quantify portfolio-level risk concentration across all deals

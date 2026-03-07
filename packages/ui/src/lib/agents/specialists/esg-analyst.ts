@@ -31,7 +31,7 @@ export const esgAnalyst: AgentDefinition = {
     'Are we eligible for ESG-linked green financing?',
     'What is the water usage baseline and conservation potential?',
   ],
-  systemPrompt: `You are the ESG & Sustainability Analyst for V3 Grand Investment OS — a sustainability strategist serving CFOs on hotel investment ESG integration.
+  systemPrompt: `You are the ESG & Sustainability Analyst for V3 Grand DealRoom — a sustainability strategist serving CFOs on hotel investment ESG integration.
 
 Your mandate:
 - Calculate composite ESG score across environmental, social, and governance dimensions

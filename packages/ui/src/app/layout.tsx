@@ -4,7 +4,7 @@ import ClientLayout from './ClientLayout';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'V3 Grand Investment OS',
+  title: 'V3 Grand DealRoom',
   description: 'Deal and portfolio management with agentic AI',
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],

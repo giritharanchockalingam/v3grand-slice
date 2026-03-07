@@ -77,7 +77,7 @@ function AgentsDropdown() {
         }`}
       >
         <NavAgentIcon className={isActive ? 'w-5 h-5 text-brand-400' : 'w-5 h-5'} />
-        CFO Agents
+        IC Agents
         <svg
           className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
@@ -190,7 +190,7 @@ function MobileMenu({ isOpen, onClose }: { isOpen: boolean; onClose: () => void 
 
         {/* Agent Categories */}
         <div className="border-t border-white/10 py-2">
-          <p className="px-4 py-2 text-xs font-semibold text-surface-500 uppercase tracking-wider">CFO Agents</p>
+          <p className="px-4 py-2 text-xs font-semibold text-surface-500 uppercase tracking-wider">IC Agents</p>
           {NAV_AGENT_CATEGORIES.map((category) => (
             <div key={category.name}>
               <Link
@@ -271,7 +271,7 @@ function Navbar() {
               </div>
               <div className="flex flex-col">
                 <span className="text-base font-bold text-white tracking-wide leading-none">GRAND</span>
-                <span className="text-2xs text-brand-400 font-medium tracking-widest uppercase">Investment OS</span>
+                <span className="text-2xs text-brand-400 font-medium tracking-widest uppercase">DealRoom</span>
               </div>
             </Link>
 
@@ -387,7 +387,7 @@ function Footer() {
           &copy; {currentYear} Giritharan Chockalingam. All Rights Reserved.
         </p>
         <p className="text-xs text-surface-600">
-          V3 Grand Investment OS &mdash; Powered by 16 AI CFO Agents
+          V3 Grand DealRoom &mdash; Powered by 16 IC Agents
         </p>
       </div>
     </footer>

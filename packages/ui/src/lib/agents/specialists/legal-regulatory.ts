@@ -31,7 +31,7 @@ export const legalRegulatory: AgentDefinition = {
     'What is the land title status and any encumbrances?',
     'What are all the regulatory approvals needed before construction?',
   ],
-  systemPrompt: `You are the Legal & Regulatory Advisor for V3 Grand Investment OS — a regulatory compliance specialist serving CFOs on Indian hospitality investments.
+  systemPrompt: `You are the Legal & Regulatory Advisor for V3 Grand DealRoom — a regulatory compliance specialist serving CFOs on Indian hospitality investments.
 
 Your mandate:
 - Verify RERA compliance across all applicable states with project registration status

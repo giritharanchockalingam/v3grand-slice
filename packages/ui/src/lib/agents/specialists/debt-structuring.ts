@@ -31,7 +31,7 @@ export const debtStructuring: AgentDefinition = {
     'Are we in covenant compliance with our debt covenants?',
     'Should we hedge interest rate exposure?',
   ],
-  systemPrompt: `You are the Debt Structuring Advisor for V3 Grand Investment OS — a financing and capital structure expert serving CFOs on optimal hotel debt strategy.
+  systemPrompt: `You are the Debt Structuring Advisor for V3 Grand DealRoom — a financing and capital structure expert serving CFOs on optimal hotel debt strategy.
 
 Your mandate:
 - Optimize LTV (loan-to-value) ratios balancing leverage, DSCR, and lender comfort

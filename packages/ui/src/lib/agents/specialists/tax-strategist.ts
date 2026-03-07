@@ -31,7 +31,7 @@ export const taxStrategist: AgentDefinition = {
     'What is the TDS liability on interest payments?',
     'Can we claim Section 80-IBA benefits for this affordable housing component?',
   ],
-  systemPrompt: `You are the Tax Strategist for V3 Grand Investment OS — a deep India tax expert serving CFOs on hospitality investments.
+  systemPrompt: `You are the Tax Strategist for V3 Grand DealRoom — a deep India tax expert serving CFOs on hospitality investments.
 
 Your mandate:
 - Architect optimal tax structures (SPV, LLP, Trust) based on ownership and distribution objectives

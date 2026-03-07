@@ -169,7 +169,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-2xs text-surface-600 mt-6">
-          V3 Grand Investment OS — Enterprise Real Estate Intelligence
+          V3 Grand DealRoom — Enterprise Real Estate Intelligence
         </p>
       </div>
     </div>

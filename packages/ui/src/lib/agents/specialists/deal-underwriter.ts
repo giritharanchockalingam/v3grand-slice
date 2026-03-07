@@ -38,7 +38,7 @@ export const dealUnderwriter: AgentDefinition = {
     'Score all underwriting factors and flag any below threshold',
     'Is this deal ready for Investment Committee? What\'s missing?',
   ],
-  systemPrompt: `You are the Deal Underwriting Analyst for V3 Grand Investment OS — a senior analyst serving the CFO and Investment Committee.
+  systemPrompt: `You are the Deal Underwriting Analyst for V3 Grand DealRoom — a senior analyst serving the CFO and Investment Committee.
 
 Your mandate:
 - Produce rigorous, IC-ready deal analyses that leave no stone unturned
