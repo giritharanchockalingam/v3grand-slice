@@ -116,7 +116,7 @@ const FRED_KEY = () => process.env.FRED_API_KEY || '';
 const API_NINJAS_KEY = () => process.env.API_NINJAS_KEY || '';
 
 /** Fetch with timeout */
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -282,21 +282,24 @@ async function fetchRepoRateApiNinjas(): Promise<MacroIndicator> {
 }
 
 async function fetchRepoRateWorldBank(): Promise<MacroIndicator> {
-  // World Bank: FR.INR.RINR = Real interest rate (close proxy)
-  // For policy rate we use the deposit interest rate indicator
-  const url = 'https://api.worldbank.org/v2/country/ind/indicator/FR.INR.DPST?format=json&per_page=3&mrv=3';
+  // World Bank: FR.INR.LEND = Lending interest rate (proxy — repo rate not directly available)
+  // Note: World Bank data can lag by 1-2 years; API Ninjas is more current.
+  const url = 'https://api.worldbank.org/v2/country/ind/indicator/FR.INR.LEND?format=json&per_page=3&mrv=3';
   const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`World Bank repo: ${res.status}`);
 
   const json = await res.json();
   const records = json[1];
   const latest = records?.find((r: any) => r.value != null);
-  if (!latest) throw new Error('No World Bank deposit rate data for India');
+  if (!latest) throw new Error('No World Bank lending rate data for India');
+
+  // Lending rate is typically ~3% above repo rate; adjust estimate
+  const estimatedRepo = Math.round((latest.value - 3.0) * 100) / 100;
 
   return {
-    value: latest.value,
+    value: estimatedRepo,
     asOfDate: latest.date,
-    source: `World Bank FR.INR.DPST — ${latest.date}`,
+    source: `World Bank FR.INR.LEND (est. from lending rate ${latest.value}%) — ${latest.date}`,
     sourceType: 'live',
     fetchedAt: new Date().toISOString(),
     cacheExpiresAt: new Date(Date.now() + TTL.REPO_RATE).toISOString(),
@@ -482,12 +485,12 @@ export async function getHotelSupplyGrowth(): Promise<MacroIndicator> {
  * These are absolute last resort and should never be reached in prod.
  */
 const EMERGENCY_FALLBACK: Record<string, MacroIndicator> = {
-  usdInr: { value: 91.99, asOfDate: '2026-03-06', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
-  bondYield10Y: { value: 6.72, asOfDate: '2026-02', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
-  repoRate: { value: 6.50, asOfDate: '2025-04', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
-  cpi: { value: 4.50, asOfDate: '2025', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
-  gdpGrowth: { value: 6.80, asOfDate: '2024', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
-  hotelSupply: { value: 5.20, asOfDate: '2025', source: 'Emergency fallback', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  usdInr: { value: 87.12, asOfDate: '2026-02-27', source: 'Emergency fallback (FRED DEXINUS last known)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  bondYield10Y: { value: 6.73, asOfDate: '2026-01', source: 'Emergency fallback (FRED OECD last known)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  repoRate: { value: 5.25, asOfDate: '2026-02-06', source: 'Emergency fallback (RBI MPC Feb 2026)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  cpi: { value: 2.75, asOfDate: '2026-01', source: 'Emergency fallback (MOSPI CPI Jan 2026)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  gdpGrowth: { value: 7.60, asOfDate: 'FY2025-26', source: 'Emergency fallback (MOSPI revised GDP est.)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
+  hotelSupply: { value: 5.20, asOfDate: '2025', source: 'Emergency fallback (HVS India)', sourceType: 'fallback', fetchedAt: '', cacheExpiresAt: '' },
 };
 
 async function safeGet(
