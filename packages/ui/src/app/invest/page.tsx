@@ -1239,7 +1239,7 @@ function Step4({ input }: { input: InvestWizardInput }) {
           ))}
         </div>
         <p className="text-xs text-surface-500 mt-3">
-          All 16 experts run simultaneously. Expect results in about 45-60 seconds.
+          All 16 experts run simultaneously in batches of 4. Expect results in 2-4 minutes depending on data complexity.
         </p>
       </div>
     </div>
@@ -1249,61 +1249,152 @@ function Step4({ input }: { input: InvestWizardInput }) {
 /* ─── Analyzing View ─── */
 function AnalyzingView({ elapsedSeconds }: { elapsedSeconds: number }) {
   const [activeAgents, setActiveAgents] = useState<number[]>([]);
+  const [completedAgents, setCompletedAgents] = useState<number[]>([]);
 
+  // Simulate batch activation: 4 agents every ~1.5s (matches BATCH_DELAY_MS in API)
   useEffect(() => {
-    const timers = AGENT_PHASES.map((_, i) =>
-      setTimeout(() => setActiveAgents((prev) => [...prev, i]), 500 + i * 400)
+    const activationTimers = AGENT_PHASES.map((_, i) =>
+      setTimeout(() => setActiveAgents((prev) => [...prev, i]), 800 + i * 500)
     );
-    return () => timers.forEach(clearTimeout);
+    return () => activationTimers.forEach(clearTimeout);
   }, []);
+
+  // Simulate progressive completion based on elapsed time
+  // Batch 1 (agents 0-3): ~30-60s, Batch 2 (4-7): ~40-80s, Batch 3 (8-11): ~50-90s, Batch 4 (12-15): ~60-120s
+  useEffect(() => {
+    const completionTimers = AGENT_PHASES.map((_, i) => {
+      const batchIndex = Math.floor(i / 4);
+      const baseDelay = 25000 + batchIndex * 15000 + (i % 4) * 5000 + Math.random() * 10000;
+      return setTimeout(() => setCompletedAgents((prev) => [...prev, i]), baseDelay);
+    });
+    return () => completionTimers.forEach(clearTimeout);
+  }, []);
+
+  // Phase-based progress and messaging
+  const PHASES = [
+    { threshold: 0, label: 'Initializing IC Committee...', detail: 'Setting up 16 specialist agents' },
+    { threshold: 10, label: 'Batch 1: Core Analysis', detail: 'Market Analyst, Deal Underwriter, Risk Officer, Capital Advisor' },
+    { threshold: 30, label: 'Batch 2: Compliance & Legal', detail: 'Compliance, Legal, Tax, Forensic Auditor' },
+    { threshold: 60, label: 'Batch 3: Operations', detail: 'Construction, Revenue, PropTech, Insurance' },
+    { threshold: 90, label: 'Batch 4: Strategy & Exit', detail: 'ESG, Debt, LP Relations, Exit Strategist' },
+    { threshold: 120, label: 'Synthesizing Final Verdict', detail: 'AI CFO reviewing all 16 agent reports...' },
+    { threshold: 180, label: 'Deep Analysis in Progress', detail: 'Complex data pulls may take additional time...' },
+    { threshold: 240, label: 'Almost There...', detail: 'Finalizing risk models and recommendations...' },
+  ];
+
+  const currentPhase = [...PHASES].reverse().find(p => elapsedSeconds >= p.threshold) || PHASES[0];
+
+  // Progress bar: estimate 2-4 minutes, smooth progress
+  const estimatedTotal = 180; // 3 minutes as midpoint
+  const progressPct = Math.min(95, (elapsedSeconds / estimatedTotal) * 100);
+
+  // Format elapsed time
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  const timeDisplay = minutes > 0 ? `${minutes}m ${seconds.toString().padStart(2, '0')}s` : `${seconds}s`;
 
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
-      <div className="max-w-lg w-full text-center">
-        <div className="relative w-24 h-24 mx-auto mb-8">
-          <div className="absolute inset-0 rounded-full border-4 border-surface-700" />
-          <div className="absolute inset-0 rounded-full border-4 border-brand-400 border-t-transparent animate-spin" />
-          <div className="absolute inset-3 rounded-full border-4 border-brand-500/30 border-b-transparent animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-2xl font-bold text-brand-400">{elapsedSeconds}s</span>
+      <div className="max-w-2xl w-full">
+        {/* Timer + Phase */}
+        <div className="text-center mb-8">
+          <div className="relative w-28 h-28 mx-auto mb-6">
+            {/* Background circle */}
+            <svg className="w-28 h-28 transform -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#1e293b" strokeWidth="6" />
+              <circle
+                cx="50" cy="50" r="42" fill="none"
+                stroke="url(#progress-gradient)"
+                strokeWidth="6"
+                strokeDasharray={`${progressPct * 2.64} 264`}
+                strokeLinecap="round"
+                className="transition-all duration-1000 ease-out"
+              />
+              <defs>
+                <linearGradient id="progress-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#14b8a6" />
+                  <stop offset="100%" stopColor="#06b6d4" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold text-brand-400">{timeDisplay}</span>
+              <span className="text-[10px] text-surface-500 mt-0.5">elapsed</span>
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-white mb-2">Investment Committee at Work</h2>
+          <p className="text-brand-400 font-medium text-sm mb-1">{currentPhase.label}</p>
+          <p className="text-surface-500 text-xs">{currentPhase.detail}</p>
+        </div>
+
+        {/* Overall Progress Bar */}
+        <div className="mb-8 px-4">
+          <div className="flex justify-between text-xs text-surface-500 mb-1.5">
+            <span>{completedAgents.length}/16 agents reporting</span>
+            <span>~2-4 minutes total</span>
+          </div>
+          <div className="h-2 bg-surface-800 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-brand-500 to-teal-400 transition-all duration-1000 ease-out"
+              style={{ width: `${progressPct}%` }}
+            />
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-white mb-2">Our Expert Team is Working</h2>
-        <p className="text-surface-400 mb-8">16 AI experts are analyzing your investment right now</p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        {/* Agent Grid with Status */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-8 px-2">
           {AGENT_PHASES.map((agent, i) => {
             const isActive = activeAgents.includes(i);
+            const isCompleted = completedAgents.includes(i);
             return (
               <div
                 key={agent.name}
-                className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-500 ${
-                  isActive
-                    ? 'bg-surface-800/80 border-brand-400/30'
-                    : 'bg-surface-900/50 border-surface-800 opacity-40'
+                className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all duration-500 ${
+                  isCompleted
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : isActive
+                      ? 'bg-surface-800/80 border-brand-400/30'
+                      : 'bg-surface-900/50 border-surface-800 opacity-30'
                 }`}
               >
-                <span className="text-xl">{agent.icon}</span>
-                <div className="text-left flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white truncate">{agent.name}</div>
-                  <div className="text-xs text-surface-400 truncate">{agent.desc}</div>
+                <span className="text-lg flex-shrink-0">{agent.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-white truncate">{agent.name}</div>
+                  <div className="text-[10px] text-surface-500 truncate">{agent.desc}</div>
                 </div>
-                {isActive && (
-                  <div className="flex gap-0.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" />
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: '0.4s' }} />
-                  </div>
-                )}
+                <div className="flex-shrink-0 w-4">
+                  {isCompleted ? (
+                    <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : isActive ? (
+                    <div className="flex flex-col gap-0.5 items-center">
+                      <span className="w-1 h-1 rounded-full bg-brand-400 animate-pulse" />
+                      <span className="w-1 h-1 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: '0.2s' }} />
+                      <span className="w-1 h-1 rounded-full bg-brand-400 animate-pulse" style={{ animationDelay: '0.4s' }} />
+                    </div>
+                  ) : null}
+                </div>
               </div>
             );
           })}
         </div>
 
-        <p className="text-xs text-surface-500">
-          This usually takes 45-60 seconds. Please don&apos;t close this page.
-        </p>
+        {/* Footer Tips */}
+        <div className="text-center space-y-2">
+          <p className="text-xs text-surface-500">
+            Each agent performs real-time data pulls, financial modeling, and risk assessment.
+          </p>
+          <p className="text-xs text-surface-600">
+            Please don&apos;t close this page — your IC committee is deliberating.
+          </p>
+          {elapsedSeconds > 180 && (
+            <p className="text-xs text-amber-500/80 mt-2">
+              Taking longer than usual — complex market data queries in progress. Hang tight!
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

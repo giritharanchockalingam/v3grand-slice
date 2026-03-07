@@ -217,6 +217,9 @@ export function AssumptionEditor({ dealId }: { dealId: string }) {
         {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
       </div>
 
+      {/* Default Values & Impact Guide */}
+      <DefaultValuesGuide />
+
       {/* Result feedback */}
       {result && !result.error && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
@@ -249,6 +252,188 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {title}
       </h3>
       {children}
+    </div>
+  );
+}
+
+/* ─── Default Values & Impact Guide ─── */
+function DefaultValuesGuide() {
+  const [expanded, setExpanded] = useState(false);
+
+  const DEFAULTS = [
+    {
+      category: 'Revenue Drivers',
+      icon: '📈',
+      items: [
+        { name: 'Base ADR (Year 1)', default: '₹5,500 × star multiplier × type multiplier', impact: 'HIGH', desc: 'Starting Average Daily Rate. Directly drives top-line revenue. 5-Star gets 1.4× multiplier, Luxury Resort gets 1.3×. A ₹1,000 increase in ADR can improve IRR by 2-4%.' },
+        { name: 'Stabilized ADR', default: '₹7,000 × star × type multiplier', impact: 'HIGH', desc: 'Target ADR after ramp-up (typically Year 4-5). Determines long-term revenue trajectory and exit valuation.' },
+        { name: 'ADR Growth Rate', default: '5.0%', impact: 'MEDIUM', desc: 'Annual ADR escalation after Year 1. Compounding effect: 5% over 10 years = 63% total increase. India market average is 4-7%.' },
+        { name: 'Occupancy Ramp (New Build)', default: '30% → 45% → 55% → 62% → 68% → 72%', impact: 'HIGH', desc: 'Year 1-6 occupancy targets. Year 1 at 30% is conservative. Stabilizes at 72% by Year 5-6. Every 5% occupancy improvement adds ~1-2% IRR.' },
+      ],
+    },
+    {
+      category: 'Debt & Capital Structure',
+      icon: '🏦',
+      items: [
+        { name: 'Debt Ratio (LTV)', default: '60% (partnership) / 50% (solo)', impact: 'HIGH', desc: 'Leverage ratio. Higher debt = higher equity IRR if project performs, but higher risk. 60% is standard for Indian hotel projects. Above 70% is aggressive.' },
+        { name: 'Interest Rate', default: '9.5%', impact: 'HIGH', desc: 'Annual cost of debt. At 60% LTV, each 0.5% increase adds ~₹1.5 Cr/year in interest expense on a ₹350 Cr project. Current Indian market range: 9-11%.' },
+        { name: 'Debt Tenor', default: '15 years', impact: 'MEDIUM', desc: 'Loan repayment period. Longer tenor = lower EMI, better DSCR. 12-20 year range typical for hotel projects.' },
+        { name: 'WACC', default: '11.0%', impact: 'HIGH', desc: 'Weighted Average Cost of Capital — the discount rate for NPV. IRR must exceed WACC+200bps to pass investment gates. Lower WACC = higher NPV.' },
+      ],
+    },
+    {
+      category: 'Return & Exit',
+      icon: '🎯',
+      items: [
+        { name: 'Target IRR', default: '14% (Conservative) / 18% (Moderate) / 22% (Aggressive)', impact: 'CRITICAL', desc: 'The hurdle rate for the investment committee. All gate checks compare actual IRR to this target. Setting too high may cause rejection of viable deals.' },
+        { name: 'Exit Multiple', default: '8×', impact: 'HIGH', desc: 'Terminal value = Year 10 NOI × Exit Multiple. Luxury hotels trade at 8-12×, business hotels at 6-8×. A 1× increase can add 3-5% to IRR.' },
+        { name: 'Tax Rate', default: '25.0%', impact: 'MEDIUM', desc: 'Indian corporate tax rate. New manufacturing entities get 15%. Standard rate is 25.17%. Affects after-tax cash flows and NPV significantly.' },
+        { name: 'Inflation Rate', default: '5.0%', impact: 'LOW-MEDIUM', desc: 'Used for cost escalation modeling. Affects operating expenses, construction costs, and replacement reserves. RBI targets 4±2%.' },
+      ],
+    },
+    {
+      category: 'Operating Fees & Reserves',
+      icon: '⚙️',
+      items: [
+        { name: 'Management Fee', default: '3.0%', impact: 'MEDIUM', desc: 'Base fee paid to hotel operator (% of revenue). Franchise: ~3%, Management Contract: 3-5%. Directly reduces EBITDA margin.' },
+        { name: 'Incentive Fee', default: '10.0%', impact: 'MEDIUM', desc: 'Performance fee (% of profit above threshold). Typical range: 8-12%. Only applies under management contracts and franchise agreements.' },
+        { name: 'FF&E Reserve', default: '4.0%', impact: 'LOW', desc: 'Furniture, Fixtures & Equipment replacement reserve (% of revenue). Industry standard is 4%. Lenders typically require minimum 3%.' },
+      ],
+    },
+  ];
+
+  const SCENARIO_GUIDE = [
+    {
+      scenario: 'Conservative (Low Risk)',
+      probabilities: 'Bear 35% / Base 45% / Bull 20%',
+      bearOcc: '55%',
+      baseOcc: '68%',
+      bullOcc: '78%',
+      targetIRR: '14%',
+    },
+    {
+      scenario: 'Moderate (Medium Risk)',
+      probabilities: 'Bear 25% / Base 50% / Bull 25%',
+      bearOcc: '58%',
+      baseOcc: '72%',
+      bullOcc: '82%',
+      targetIRR: '18%',
+    },
+    {
+      scenario: 'Aggressive (High Risk)',
+      probabilities: 'Bear 20% / Base 45% / Bull 35%',
+      bearOcc: '60%',
+      baseOcc: '75%',
+      bullOcc: '88%',
+      targetIRR: '22%',
+    },
+  ];
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50/30 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-4 hover:bg-blue-50/50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📋</span>
+          <div className="text-left">
+            <h3 className="text-sm font-bold text-gray-900">Default Values & Impact Guide</h3>
+            <p className="text-xs text-gray-500">Understand how each assumption affects IRR, NPV, and CFO recommendations</p>
+          </div>
+        </div>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-blue-200 p-4 space-y-6">
+          {/* Assumption Defaults */}
+          {DEFAULTS.map((cat) => (
+            <div key={cat.category}>
+              <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3">
+                <span>{cat.icon}</span> {cat.category}
+              </h4>
+              <div className="space-y-3">
+                {cat.items.map((item) => (
+                  <div key={item.name} className="rounded-lg bg-white border border-gray-200 p-3">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="text-sm font-semibold text-gray-900">{item.name}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${
+                        item.impact === 'CRITICAL' ? 'bg-red-100 text-red-700' :
+                        item.impact === 'HIGH' ? 'bg-orange-100 text-orange-700' :
+                        item.impact === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {item.impact} IMPACT
+                      </span>
+                    </div>
+                    <div className="text-xs text-blue-700 font-mono mb-1.5">Default: {item.default}</div>
+                    <p className="text-xs text-gray-600 leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Scenario Guide */}
+          <div>
+            <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <span>🎲</span> Risk Appetite & Scenario Weights
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="text-left p-2 font-semibold text-gray-700">Risk Profile</th>
+                    <th className="text-left p-2 font-semibold text-gray-700">Scenario Probabilities</th>
+                    <th className="text-center p-2 font-semibold text-gray-700">Bear Occ.</th>
+                    <th className="text-center p-2 font-semibold text-gray-700">Base Occ.</th>
+                    <th className="text-center p-2 font-semibold text-gray-700">Bull Occ.</th>
+                    <th className="text-center p-2 font-semibold text-gray-700">Target IRR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SCENARIO_GUIDE.map((s) => (
+                    <tr key={s.scenario} className="border-t border-gray-200">
+                      <td className="p-2 font-medium text-gray-800">{s.scenario}</td>
+                      <td className="p-2 text-gray-600">{s.probabilities}</td>
+                      <td className="p-2 text-center text-red-600">{s.bearOcc}</td>
+                      <td className="p-2 text-center text-gray-800">{s.baseOcc}</td>
+                      <td className="p-2 text-center text-green-600">{s.bullOcc}</td>
+                      <td className="p-2 text-center font-bold text-blue-700">{s.targetIRR}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* CFO Recommendations Cheatsheet */}
+          <div>
+            <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-3">
+              <span>💡</span> CFO Adjustment Playbook
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                { title: 'To improve IRR', actions: 'Reduce investment amount, negotiate lower interest rate, increase ADR/Occupancy targets, shorten construction timeline, reduce management fees' },
+                { title: 'To improve NPV', actions: 'Lower WACC (better financing terms), increase exit multiple assumption, extend revenue growth rate, improve occupancy ramp' },
+                { title: 'To improve DSCR', actions: 'Lower LTV ratio (more equity, less debt), extend debt tenor, reduce interest rate, increase NOI through higher ADR or lower fees' },
+                { title: 'To make deal viable', actions: 'Lower Target IRR hurdle, phase construction to reduce upfront capex, secure anchor tenants for guaranteed revenue, switch brand strategy for lower fees' },
+              ].map((tip) => (
+                <div key={tip.title} className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                  <p className="text-xs font-bold text-emerald-800 mb-1">{tip.title}</p>
+                  <p className="text-xs text-emerald-700">{tip.actions}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
