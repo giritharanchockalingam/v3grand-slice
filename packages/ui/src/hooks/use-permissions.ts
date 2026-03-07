@@ -17,8 +17,8 @@ const ROLE_PERMISSIONS: Record<string, {
     canRecompute: true,
     canApprove: true,
     canManageConstruction: true,
-    canCreateCO: false,
-    canCreateRFI: false,
+    canCreateCO: true,
+    canCreateRFI: true,
   },
   'co-investor': {
     canEdit: true,
