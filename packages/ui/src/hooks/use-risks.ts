@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export interface Risk {
   id: string;
@@ -33,9 +34,11 @@ interface RiskResponse {
 }
 
 export function useRisks(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery<RiskResponse>({
     queryKey: ['deals', dealId, 'risks'],
     queryFn: () => api.get(`/deals/${dealId}/risks`),
+    enabled: !loading && !!token,
     staleTime: 30_000,
   });
 }

@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export interface AssumptionRow {
   id: string;
@@ -17,10 +18,11 @@ export interface AssumptionRow {
 }
 
 export function useDealAssumptions(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery({
     queryKey: ['deals', dealId, 'assumptions'],
     queryFn: () => api.get<{ assumptions: AssumptionRow[] }>(`/deals/${dealId}/assumptions`),
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 }
 
@@ -102,25 +104,28 @@ export function useRecompute(dealId: string) {
 // ── Excel validation: board criteria, capital structure, scenarios (expected return), phase2 gate ──
 
 export function useBoardCriteria(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery({
     queryKey: ['deals', dealId, 'board-criteria'],
     queryFn: () => api.get<{ dealId: string; boardCriteria: Array<{ name: string; threshold: number; actual: number; passed: boolean }> }>(`/deals/${dealId}/board-criteria`),
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 }
 
 export function useCapitalStructureScenarios(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery({
     queryKey: ['deals', dealId, 'capital-structure-scenarios'],
     queryFn: () => api.get<{
       dealId: string;
       scenarios: Array<{ debtPct: number; equityPct: number; irr: number; npv: number; avgDSCR: number; riskLevel: string; recommendation: string }>;
     }>(`/deals/${dealId}/capital-structure-scenarios`),
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 }
 
 export function useScenarios(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery({
     queryKey: ['deals', dealId, 'scenarios'],
     queryFn: () => api.get<{
@@ -131,11 +136,12 @@ export function useScenarios(dealId: string) {
       expectedNPV: number;
       scenarios: Record<string, { scenarioKey: string; proforma: { irr: number; npv: number } | null; recommendation: unknown }>;
     }>(`/deals/${dealId}/scenarios`),
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 }
 
 export function usePhase2Gate(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery({
     queryKey: ['deals', dealId, 'phase2-gate'],
     queryFn: () => api.get<{
@@ -147,6 +153,6 @@ export function usePhase2Gate(dealId: string) {
         verdict: string;
       };
     }>(`/deals/${dealId}/phase2-gate`),
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 }

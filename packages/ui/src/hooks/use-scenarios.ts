@@ -1,6 +1,7 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export interface ScenarioResult {
   scenarioKey: string;
@@ -65,12 +66,14 @@ function transformResponse(raw: any): ScenariosResponse {
 }
 
 export function useScenarios(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery<ScenariosResponse>({
     queryKey: ['deals', dealId, 'scenarios'],
     queryFn: async () => {
       const raw = await api.get(`/deals/${dealId}/scenarios`);
       return transformResponse(raw);
     },
+    enabled: !loading && !!token,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });

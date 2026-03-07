@@ -7,6 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export interface Alert {
   id: string;
@@ -48,6 +49,7 @@ async function acknowledgeAlert(alertId: string): Promise<Alert> {
  */
 export function useAlerts(dealId: string) {
   const queryClient = useQueryClient();
+  const { token, loading } = useAuth();
 
   // Query: fetch alerts
   const alertsQuery = useQuery({
@@ -56,7 +58,7 @@ export function useAlerts(dealId: string) {
     staleTime: 30000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: true,
-    enabled: !!dealId,
+    enabled: !!dealId && !loading && !!token,
   });
 
   // Mutation: acknowledge alert

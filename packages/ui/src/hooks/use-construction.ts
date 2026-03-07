@@ -1,6 +1,7 @@
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api-client';
+import { useAuth } from '../lib/auth-context';
 
 export interface BudgetLine {
   id: string; costCode: string; description: string; category: string;
@@ -37,9 +38,11 @@ export interface ConstructionDashboard {
 }
 
 export function useConstruction(dealId: string) {
+  const { token, loading } = useAuth();
   return useQuery<ConstructionDashboard>({
     queryKey: ['deals', dealId, 'construction'],
     queryFn: () => api.get(`/deals/${dealId}/construction/dashboard`),
+    enabled: !loading && !!token,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });

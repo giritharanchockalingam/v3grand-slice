@@ -9,11 +9,15 @@ import { useAuth } from '../lib/auth-context';
 
 export function useDashboard(dealId: string) {
   const qc = useQueryClient();
-  const { token } = useAuth();
+  const { token, loading } = useAuth();
 
   const query = useQuery<DealDashboardView>({
     queryKey: ['deals', dealId, 'dashboard'],
     queryFn: () => api.get(`/deals/${dealId}/dashboard`),
+    // Wait until AuthProvider has finished restoring the token from
+    // sessionStorage; otherwise api-client sends no Authorization header
+    // and the server returns 401.
+    enabled: !loading && !!token,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
