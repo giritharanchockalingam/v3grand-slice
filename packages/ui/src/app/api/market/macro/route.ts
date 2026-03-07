@@ -1,19 +1,24 @@
 import { NextResponse } from 'next/server';
 import { getAllMacroIndicators, invalidateAllCache } from '@/lib/server/macro-data';
 
+/** Allow up to 60s for Serper + FRED + other API calls */
+export const maxDuration = 60;
+
 /**
  * GET /api/market/macro
  *
- * Returns India macro indicators sourced LIVE from authoritative APIs:
- *   USD/INR  → FRED DEXINUS → Frankfurter → Open ExchangeRate API
- *   Bond 10Y → FRED INDIRLTLT01STM
- *   Repo Rate → API Ninjas → World Bank
- *   CPI      → API Ninjas → World Bank
- *   GDP      → World Bank → FRED
- *   Hotel    → HVS (manual; no free API)
+ * Returns India macro indicators sourced LIVE from the most current
+ * authoritative sources available:
  *
- * Intelligent caching: FX 15 min, bonds 1 hr, repo 24 hr, CPI 7 d, GDP 30 d.
- * Stale-while-revalidate: serves stale data while refreshing in background.
+ *   USD/INR   → ExchangeRate-API (daily) → Frankfurter → FRED → Serper
+ *   Bond 10Y  → Serper Web Intel → FRED OECD monthly
+ *   Repo Rate → API Ninjas → Serper Web Intel
+ *   CPI       → API Ninjas → Serper → FRED OECD monthly → World Bank
+ *   GDP       → Serper Web Intel → World Bank → FRED
+ *   Hotel     → Serper Web Intel → HVS static
+ *
+ * The Serper Web Intelligence agent searches Google for the latest
+ * published values from Trading Economics, RBI, MOSPI, etc.
  */
 export async function GET(request: Request) {
   try {
