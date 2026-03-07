@@ -521,12 +521,12 @@ export async function getAllMacroIndicators(): Promise<MacroData> {
     safeGet('hotelSupply', getHotelSupplyGrowth),
   ]);
 
-  // Determine overall source quality
-  const allTypes = [usdInr, bondYield10Y, repoRate, cpi, gdpGrowth, hotelSupply].map(i => i.sourceType);
+  // Determine overall source quality (exclude hotel supply — no free API exists)
+  const coreTypes = [usdInr, bondYield10Y, repoRate, cpi, gdpGrowth].map(i => i.sourceType);
   const overallSource: MacroData['source'] =
-    allTypes.every(t => t === 'live') ? 'live' :
-    allTypes.some(t => t === 'fallback') ? 'fallback' :
-    allTypes.some(t => t === 'stale') ? 'stale' : 'cached';
+    coreTypes.every(t => t === 'live' || t === 'cached') ? 'live' :
+    coreTypes.some(t => t === 'fallback') ? 'fallback' :
+    coreTypes.some(t => t === 'stale') ? 'stale' : 'cached';
 
   // Determine inflation trend from CPI value
   const inflationTrend: MacroData['inflationTrend'] =
