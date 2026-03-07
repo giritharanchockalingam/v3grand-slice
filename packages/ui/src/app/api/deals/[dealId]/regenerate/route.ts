@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/server/db';
 import { withRLS } from '@/lib/server/db';
 import { getAuthUser } from '@/lib/server/auth';
+import { sql } from 'drizzle-orm';
 import {
   getDealById,
   createBudgetLine,
@@ -71,6 +72,15 @@ export async function POST(
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
       const results: { construction?: any; risks?: any } = {};
+
+      // ── Clear existing data to prevent duplicates on re-run ──
+      if (types.includes('construction')) {
+        await db.execute(sql`DELETE FROM v3grand.budget_lines WHERE deal_id = ${dealId}`);
+        await db.execute(sql`DELETE FROM v3grand.milestones WHERE deal_id = ${dealId}`);
+      }
+      if (types.includes('risks')) {
+        await db.execute(sql`DELETE FROM v3grand.risks WHERE deal_id = ${dealId}`);
+      }
 
       // ── Generate Construction Data ──
       if (types.includes('construction')) {
