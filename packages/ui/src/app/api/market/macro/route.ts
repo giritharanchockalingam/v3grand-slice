@@ -18,7 +18,7 @@ export async function GET() {
       gdpGrowthRate: 7.40,
       bondYield10Y: 6.72,
       hotelSupplyGrowthPct: 5.20,
-      usdInrRate: 87.50,
+      usdInrRate: 91.99,
       inflationTrend: 'declining' as const,
       source: 'fallback' as const,
       fetchedAt: now,
@@ -48,9 +48,9 @@ export async function GET() {
           sourceType: 'official' as const,
         },
         usdInr: {
-          value: 87.50,
-          asOfDate: '2026-03',
-          source: 'RBI Reference Rate — Mar 2026',
+          value: 91.99,
+          asOfDate: '2026-03-06',
+          source: 'RBI Reference Rate — Mar 6, 2026 (Trading Economics)',
           sourceType: 'official' as const,
         },
         hotelSupplyGrowth: {
