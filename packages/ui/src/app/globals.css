@@ -282,3 +282,89 @@
     overflow: hidden;
   }
 }
+
+/* ─── Light Theme Overrides ─── */
+/* When .light-theme is applied to <html>, override dark surface backgrounds */
+.light-theme nav.sticky {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+.light-theme nav .text-white {
+  color: #0f172a !important;
+}
+.light-theme nav .text-surface-400 {
+  color: #64748b !important;
+}
+.light-theme nav .text-brand-400 {
+  color: #0d9488 !important;
+}
+.light-theme nav .bg-surface-900\/95 {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+.light-theme nav .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Main content area */
+.light-theme main {
+  background: #f8fafc;
+}
+
+/* Cards and panels */
+.light-theme .bg-surface-900,
+.light-theme .bg-surface-950 {
+  background: #ffffff !important;
+}
+.light-theme .bg-surface-900\/95 {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+.light-theme .bg-surface-800 {
+  background: #f1f5f9 !important;
+}
+
+/* Dropdown / flyout menus */
+.light-theme nav .absolute.bg-surface-900 {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+.light-theme nav .absolute .text-surface-300 {
+  color: #334155 !important;
+}
+.light-theme nav .absolute .hover\:bg-white\/5:hover {
+  background: #f1f5f9 !important;
+}
+
+/* Footer */
+.light-theme footer {
+  background: #f1f5f9 !important;
+  border-top-color: #e2e8f0 !important;
+}
+.light-theme footer .text-surface-500,
+.light-theme footer .text-surface-600 {
+  color: #64748b !important;
+}
+
+/* Tab bars in deal pages */
+.light-theme .border-white\/10 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Mobile menu */
+.light-theme .fixed .bg-surface-900 {
+  background: #ffffff !important;
+}
+
+/* Text overrides for main content */
+.light-theme .bg-white\/\[0\.03\] {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Login page light theme */
+.light-theme .bg-surface-950 {
+  background: #f1f5f9 !important;
+}
+.light-theme .bg-gradient-to-br.from-brand-900\/30 {
+  background: linear-gradient(to bottom right, rgba(20, 184, 166, 0.05), #f8fafc, rgba(59, 130, 246, 0.03)) !important;
+}

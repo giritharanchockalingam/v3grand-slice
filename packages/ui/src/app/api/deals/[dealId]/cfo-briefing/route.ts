@@ -36,6 +36,7 @@ export async function POST(
     let investSummary = body.investSummary ?? null;
     let investKeyMetrics = body.investKeyMetrics ?? null;
     let investWarnings: string[] = body.investWarnings ?? [];
+    const languageSuffix: string = body.languageSuffix ?? '';
 
     // Fetch all deal data with RLS
     const data = await withRLS(user.userId, user.role, async (db) => {
@@ -96,7 +97,9 @@ ${agentContext}
 
 ${investWizardContext}
 
-Remember: You ARE the CFO presenting to the Investment Committee. Speak in first person. This will be read aloud via text-to-speech, so write for the ear, not the eye. No bullet points, no markdown, no numbers in parentheses. Write flowing, authoritative prose that a CFO would actually speak in a boardroom. Every claim must be grounded in the data provided above.`,
+Remember: You ARE the CFO presenting to the Investment Committee. Speak in first person. This will be read aloud via text-to-speech, so write for the ear, not the eye. No bullet points, no markdown, no numbers in parentheses. Write flowing, authoritative prose that a CFO would actually speak in a boardroom. Every claim must be grounded in the data provided above.
+
+Use natural pauses by ending sentences clearly with periods. Vary sentence length — mix short, punchy statements with longer analytical ones. Add brief transitional phrases like "Now," "Let me turn to," "What concerns me is," "The good news is" to create a conversational rhythm.${languageSuffix}`,
       }],
     });
 

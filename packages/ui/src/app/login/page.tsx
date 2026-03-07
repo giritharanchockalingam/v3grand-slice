@@ -57,7 +57,7 @@ export default function LoginPage() {
             <span className="text-white font-bold text-xl">V3</span>
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">V3 GRAND</h1>
-          <p className="text-sm text-surface-400 mt-1">Investment Operating System</p>
+          <p className="text-sm text-surface-400 mt-1">Enterprise Real Estate Intelligence</p>
 
           {/* Agent Grid */}
           <div className="mt-6 pt-6 border-t border-white/10">

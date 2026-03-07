@@ -4,12 +4,13 @@
  * Partner Walkthrough — AI-Powered CFO Investment Committee briefing.
  *
  * Calls Claude via /api/deals/[dealId]/cfo-briefing to generate a genuine,
- * intelligent CFO IC presentation that synthesizes ALL available data:
- * engine results, 16-agent analyses, market intel, factor scores, Monte Carlo,
- * and the invest wizard verdict. Adapts tone naturally to findings.
+ * intelligent CFO IC presentation that synthesizes ALL available data.
  *
- * The old template approach is gone — this is a real AI CFO that speaks with
- * authority, cites specific findings, and connects dots across analyses.
+ * Features:
+ * - Natural sentence-by-sentence TTS with pauses between sentences
+ * - Language selection: English (Indian), Tamil, Hindi
+ * - Adjustable speech rate
+ * - Play/Pause/Stop/Regenerate controls
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,14 +18,36 @@ import type { DealDashboardView } from '@v3grand/core';
 import { api } from '../../lib/api-client';
 
 const WALKTHROUGH_LABEL = 'CFO investment briefing';
-const VOICE_PREFERENCE = 'en-IN';
+
+type Language = 'en' | 'ta' | 'hi';
+
+const LANGUAGE_CONFIG: Record<Language, { label: string; flag: string; voiceLang: string; promptSuffix: string }> = {
+  en: { label: 'English', flag: '🇬🇧', voiceLang: 'en-IN', promptSuffix: '' },
+  ta: { label: 'தமிழ்', flag: '🇮🇳', voiceLang: 'ta-IN', promptSuffix: '\n\nIMPORTANT: Generate the ENTIRE briefing in Tamil (தமிழ்). Use formal Tamil appropriate for a boardroom Investment Committee presentation. Financial terms may remain in English where Tamil equivalents are uncommon.' },
+  hi: { label: 'हिन्दी', flag: '🇮🇳', voiceLang: 'hi-IN', promptSuffix: '\n\nIMPORTANT: Generate the ENTIRE briefing in Hindi (हिन्दी). Use formal Hindi appropriate for a boardroom Investment Committee presentation. Financial terms may remain in English where Hindi equivalents are uncommon.' },
+};
+
+// Sentence splitting for natural pauses
+function splitIntoSentences(text: string): string[] {
+  // Split on sentence-ending punctuation followed by space or newline
+  const raw = text.split(/(?<=[.!?।])\s+/);
+  // Merge very short fragments back into previous sentence
+  const merged: string[] = [];
+  for (const s of raw) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    if (merged.length > 0 && trimmed.length < 20) {
+      merged[merged.length - 1] += ' ' + trimmed;
+    } else {
+      merged.push(trimmed);
+    }
+  }
+  return merged;
+}
 
 export interface PartnerWalkthroughProps {
-  /** Dashboard data (deal, recommendation, proforma, decisionInsight, etc.) */
   data: DealDashboardView | null;
-  /** Optional CSS class for the container */
   className?: string;
-  /** Compact mode: single icon button without "Show script" */
   compact?: boolean;
 }
 
@@ -35,52 +58,115 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
   const [loading, setLoading] = useState(false);
   const [narrative, setNarrative] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [language, setLanguage] = useState<Language>('en');
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [currentSentence, setCurrentSentence] = useState(-1);
+  const sentenceQueueRef = useRef<string[]>([]);
+  const sentenceIndexRef = useRef(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const isStoppedRef = useRef(false);
+  const langMenuRef = useRef<HTMLDivElement>(null);
 
   const dealId = data?.deal?.id;
 
+  // Close language menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setShowLangMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
   const stop = useCallback(() => {
+    isStoppedRef.current = true;
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
     setPlaying(false);
     setPaused(false);
+    setCurrentSentence(-1);
+    sentenceIndexRef.current = 0;
   }, []);
+
+  // Speak sentence by sentence with natural pauses
+  const speakSentence = useCallback((sentences: string[], index: number) => {
+    if (isStoppedRef.current || index >= sentences.length) {
+      setPlaying(false);
+      setPaused(false);
+      setCurrentSentence(-1);
+      return;
+    }
+
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    const sentence = sentences[index];
+    setCurrentSentence(index);
+    sentenceIndexRef.current = index;
+
+    const u = new SpeechSynthesisUtterance(sentence);
+    const langCfg = LANGUAGE_CONFIG[language];
+
+    // Natural CFO voice settings — slower, deeper, more authoritative
+    u.rate = 0.88;   // Slightly slower than normal for gravitas
+    u.pitch = 0.92;  // Slightly lower pitch for authority
+    u.volume = 1;
+    u.lang = langCfg.voiceLang;
+
+    // Try to find the best voice for the language
+    const voices = window.speechSynthesis.getVoices();
+    const langCode = langCfg.voiceLang;
+    const bestVoice = voices.find(v =>
+      v.lang === langCode || v.lang === langCode.replace('-', '_')
+    ) ?? voices.find(v =>
+      v.lang.startsWith(langCode.split('-')[0])
+    );
+    if (bestVoice) u.voice = bestVoice;
+
+    u.onend = () => {
+      if (isStoppedRef.current) return;
+      // Add a natural pause between sentences (300-600ms depending on punctuation)
+      const pauseMs = sentence.endsWith('?') ? 500 : sentence.endsWith('!') ? 450 : 350;
+      setTimeout(() => {
+        if (!isStoppedRef.current) {
+          speakSentence(sentences, index + 1);
+        }
+      }, pauseMs);
+    };
+    u.onerror = () => {
+      if (!isStoppedRef.current) {
+        speakSentence(sentences, index + 1);
+      }
+    };
+
+    utteranceRef.current = u;
+    window.speechSynthesis.speak(u);
+  }, [language]);
 
   const speakNarrative = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.92;
-    u.pitch = 1;
-    u.volume = 1;
-    u.lang = VOICE_PREFERENCE;
+    isStoppedRef.current = false;
 
-    // Try to find an Indian English voice
-    const voices = window.speechSynthesis.getVoices();
-    const indianVoice = voices.find(v => v.lang.includes('en-IN') || v.lang.includes('en_IN'));
-    if (indianVoice) u.voice = indianVoice;
+    const sentences = splitIntoSentences(text);
+    sentenceQueueRef.current = sentences;
+    sentenceIndexRef.current = 0;
 
-    u.onend = () => {
-      setPlaying(false);
-      setPaused(false);
-    };
-    u.onerror = () => {
-      setPlaying(false);
-      setPaused(false);
-    };
-    utteranceRef.current = u;
-    window.speechSynthesis.speak(u);
     setPlaying(true);
     setPaused(false);
-  }, []);
+    speakSentence(sentences, 0);
+  }, [speakSentence]);
 
-  const generateAndPlay = useCallback(async () => {
+  const generateAndPlay = useCallback(async (forceLang?: Language) => {
     if (!dealId || !data) return;
 
-    // If we already have a narrative, just play it
-    if (narrative) {
+    const lang = forceLang ?? language;
+
+    // If we have a narrative for the current language, just play it
+    if (narrative && !forceLang) {
       speakNarrative(narrative);
       return;
     }
@@ -89,7 +175,6 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
     setError(null);
 
     try {
-      // Gather invest wizard agent results from sessionStorage (if available)
       let agentResults: Array<{ agentName: string; reply: string; error?: string }> = [];
       let investVerdict: string | null = null;
       let investSummary: string | null = null;
@@ -113,16 +198,17 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
           }
         }
       } catch {
-        // sessionStorage not available or parse error — proceed without agent results
+        // sessionStorage not available
       }
 
-      // Call the AI CFO briefing API
+      const langCfg = LANGUAGE_CONFIG[lang];
       const result = await api.post<{ narrative: string }>(`/deals/${dealId}/cfo-briefing`, {
         agentResults,
         investVerdict,
         investSummary,
         investKeyMetrics,
         investWarnings,
+        languageSuffix: langCfg.promptSuffix,
       });
 
       setNarrative(result.narrative);
@@ -132,15 +218,13 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
       setLoading(false);
       const message = err instanceof Error ? err.message : 'Failed to generate CFO briefing';
       setError(message);
-      console.error('CFO briefing generation failed:', err);
     }
-  }, [dealId, data, narrative, speakNarrative]);
+  }, [dealId, data, narrative, language, speakNarrative]);
 
   const play = useCallback(() => {
     if (loading) return;
 
     if (playing && !paused) {
-      // Pause
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.pause();
       }
@@ -148,7 +232,6 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
       return;
     }
     if (paused) {
-      // Resume
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.resume();
       }
@@ -156,9 +239,15 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
       return;
     }
 
-    // Generate (if needed) and play
     generateAndPlay();
   }, [loading, playing, paused, generateAndPlay]);
+
+  const switchLanguage = useCallback((lang: Language) => {
+    setLanguage(lang);
+    setShowLangMenu(false);
+    stop();
+    setNarrative(null); // Clear cached narrative so it regenerates in new language
+  }, [stop]);
 
   // Clear narrative cache when deal changes
   useEffect(() => {
@@ -168,20 +257,33 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
 
   useEffect(() => {
     return () => {
+      isStoppedRef.current = true;
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
 
+  // Pre-load voices
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+      window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+      };
+    }
+  }, []);
+
   if (!data) return null;
 
   const canPlay = !loading;
   const isActive = playing && !paused;
+  const langCfg = LANGUAGE_CONFIG[language];
 
   return (
     <div className={`${className}`}>
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Play/Pause button */}
         <button
           type="button"
           onClick={canPlay ? play : undefined}
@@ -219,6 +321,8 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
             </>
           )}
         </button>
+
+        {/* Stop button */}
         {playing && (
           <button
             type="button"
@@ -230,14 +334,48 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
             <span>Stop</span>
           </button>
         )}
+
+        {/* Language Selector */}
+        <div className="relative" ref={langMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowLangMenu((s) => !s)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-surface-200 bg-white px-2.5 py-2 text-sm font-medium text-surface-600 hover:bg-surface-50 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1"
+            title="Select language"
+          >
+            <span>{langCfg.flag}</span>
+            <span className="text-xs">{langCfg.label}</span>
+            <svg className="w-3 h-3 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showLangMenu && (
+            <div className="absolute top-full left-0 mt-1 w-40 bg-white border border-surface-200 rounded-lg shadow-lg z-50 overflow-hidden">
+              {(Object.entries(LANGUAGE_CONFIG) as [Language, typeof LANGUAGE_CONFIG['en']][]).map(([key, cfg]) => (
+                <button
+                  key={key}
+                  onClick={() => switchLanguage(key)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-surface-50 transition-colors ${
+                    language === key ? 'bg-brand-50 text-brand-700 font-medium' : 'text-surface-700'
+                  }`}
+                >
+                  <span>{cfg.flag}</span>
+                  <span>{cfg.label}</span>
+                  {language === key && <span className="ml-auto text-brand-500 text-xs">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Show Script */}
         {!compact && (
           <button
             type="button"
             onClick={() => {
               if (!narrative && !loading) {
-                // Generate without playing if user just wants to read
                 generateAndPlay().then(() => {
-                  stop(); // Stop speech, just show script
+                  stop();
                 });
               }
               setShowScript((s) => !s);
@@ -247,6 +385,8 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
             {showScript ? 'Hide script' : 'Show script'}
           </button>
         )}
+
+        {/* Regenerate */}
         {narrative && !playing && (
           <button
             type="button"
@@ -259,16 +399,34 @@ export function PartnerWalkthrough({ data, className = '', compact = false }: Pa
           </button>
         )}
       </div>
+
+      {/* Progress indicator */}
+      {playing && sentenceQueueRef.current.length > 0 && (
+        <div className="mt-2 flex items-center gap-2">
+          <div className="flex-1 h-1 bg-surface-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-brand-500 rounded-full transition-all duration-500"
+              style={{ width: `${((currentSentence + 1) / sentenceQueueRef.current.length) * 100}%` }}
+            />
+          </div>
+          <span className="text-2xs text-surface-400 font-mono">
+            {currentSentence + 1}/{sentenceQueueRef.current.length}
+          </span>
+        </div>
+      )}
+
       {error && (
         <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
+
       {showScript && narrative && (
         <div className="mt-3 rounded-xl border border-surface-200 bg-surface-50/50 p-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold text-surface-500 uppercase tracking-wide">AI CFO Investment Committee briefing</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 font-medium">AI Generated</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-100 text-surface-600 font-medium">{langCfg.label}</span>
           </div>
           <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">{narrative}</p>
         </div>

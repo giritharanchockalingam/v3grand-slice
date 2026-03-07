@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { AuthProvider, useAuth } from '../lib/auth-context';
+import { ThemeProvider, useTheme } from '../lib/theme-context';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FloatingAgent } from '../components/agent/FloatingAgent';
@@ -126,6 +127,28 @@ function AgentsDropdown() {
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      onClick={toggleTheme}
+      className="p-2 text-surface-400 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-150"
+      title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      aria-label="Toggle theme"
+    >
+      {theme === 'dark' ? (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ) : (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -335,6 +358,9 @@ function Navbar() {
 
                 <div className="hidden sm:block h-6 w-px bg-white/10" />
 
+                {/* Theme Toggle */}
+                <ThemeToggle />
+
                 {/* Notification Bell */}
                 <button
                   className="p-2 text-surface-400 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-150 relative"
@@ -431,8 +457,10 @@ function LayoutContent({ children }: { children: ReactNode }) {
 
 export default function ClientLayout({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <LayoutContent>{children}</LayoutContent>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <LayoutContent>{children}</LayoutContent>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
