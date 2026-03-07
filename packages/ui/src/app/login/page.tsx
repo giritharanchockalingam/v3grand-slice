@@ -61,19 +61,35 @@ export default function LoginPage() {
 
           {/* Agent Grid */}
           <div className="mt-6 pt-6 border-t border-white/10">
-            <p className="text-2xs text-surface-500 mb-4 uppercase tracking-widest font-semibold">16 AI CFO Experts · Real-Time Intelligence · Institutional Grade</p>
+            <p className="text-2xs text-surface-500 mb-4 uppercase tracking-widest font-semibold">16 IC Agents · Real-Time Intelligence · Institutional Grade</p>
             <div className="grid grid-cols-4 gap-2">
-              {['🌍', '📊', '🛡️', '💰', '⚖️', '🏛️', '🔬', '📈', '🏦', '🤝', '🎯', '🛡️', '💡', '🌱', '🔬', '📋'].map((emoji, idx) => (
+              {[
+                { icon: '🌍', label: 'Market Intel' },
+                { icon: '📊', label: 'Underwriter' },
+                { icon: '🛡️', label: 'Risk Officer' },
+                { icon: '💰', label: 'Capital' },
+                { icon: '🔒', label: 'Compliance' },
+                { icon: '⚖️', label: 'Legal' },
+                { icon: '🏛️', label: 'Tax Strategy' },
+                { icon: '🔬', label: 'Forensic' },
+                { icon: '🏗️', label: 'Construction' },
+                { icon: '📈', label: 'Revenue' },
+                { icon: '💡', label: 'PropTech' },
+                { icon: '🛡️', label: 'Insurance' },
+                { icon: '🌱', label: 'ESG' },
+                { icon: '🏦', label: 'Debt' },
+                { icon: '🤝', label: 'LP Relations' },
+                { icon: '🎯', label: 'Exit Strategy' },
+              ].map((agent, idx) => (
                 <div
                   key={idx}
-                  className="w-10 h-10 flex items-center justify-center text-lg rounded-lg bg-white/5 border border-white/10
-                             hover:bg-white/10 hover:border-brand-400/40 transition-all duration-300 transform hover:scale-110
-                             animate-pulse"
-                  style={{
-                    animationDelay: `${idx * 0.1}s`,
-                  }}
+                  className="group relative flex flex-col items-center gap-1 py-2 px-1 rounded-lg bg-white/5 border border-white/10
+                             hover:bg-white/10 hover:border-brand-400/40 transition-all duration-300"
                 >
-                  {emoji}
+                  <span className="text-base leading-none">{agent.icon}</span>
+                  <span className="text-[9px] text-surface-400 group-hover:text-brand-300 leading-tight text-center font-medium truncate w-full transition-colors">
+                    {agent.label}
+                  </span>
                 </div>
               ))}
             </div>
