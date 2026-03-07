@@ -2,7 +2,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useDashboard, useRunUnderwriter } from '../../../hooks/use-dashboard';
 import { usePermissions } from '../../../hooks/use-permissions';
 import { RecommendationCard } from '../../../components/dashboard/RecommendationCard';
@@ -23,6 +23,7 @@ import { RevaluationPanel } from '../../../components/dashboard/RevaluationPanel
 import { SensitivityAnalysis } from '../../../components/analysis/SensitivityAnalysis';
 import { ExportPanel } from '../../../components/export/ExportPanel';
 import { useAuth } from '../../../lib/auth-context';
+import { api } from '../../../lib/api-client';
 import { MarketIntelligenceTab } from '../../../components/dashboard/MarketIntelligenceTab';
 import { PartnerWalkthrough } from '../../../components/dashboard/PartnerWalkthrough';
 import { FeasibilityWorkbench } from '../../../components/feasibility/FeasibilityWorkbench';
@@ -64,6 +65,54 @@ export default function DealDashboardPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'error' | 'success' } | null>(null);
 
   const showConstruction = canManageConstruction || user?.role === 'co-investor';
+
+  // ── CFO Live Demo callbacks ──
+  // Track pending assumption changes from the CFO walkthrough demo mode
+  const pendingAssumptionChanges = useRef<Record<string, number>>({});
+
+  const handleDemoChangeAssumption = useCallback((field: string, value: number) => {
+    pendingAssumptionChanges.current[field] = value;
+    // Dispatch a custom event so the AssumptionEditor can react
+    window.dispatchEvent(new CustomEvent('cfo-demo-change', {
+      detail: { field, value },
+    }));
+  }, []);
+
+  const handleDemoRecompute = useCallback(async () => {
+    if (!dealId) return;
+    const changes = pendingAssumptionChanges.current;
+    if (Object.keys(changes).length === 0) {
+      // No assumption changes — just trigger a raw recompute
+      underwrite.mutate();
+      return;
+    }
+
+    // Apply accumulated assumption changes and recompute
+    try {
+      const marketFields = ['adrBase', 'adrStabilized', 'adrGrowthRate'];
+      const marketChanges: Record<string, number> = {};
+      const finChanges: Record<string, number> = {};
+
+      for (const [k, v] of Object.entries(changes)) {
+        if (marketFields.includes(k)) {
+          marketChanges[k] = v;
+        } else {
+          finChanges[k] = v;
+        }
+      }
+
+      await api.patch(`/deals/${dealId}/assumptions`, {
+        ...(Object.keys(marketChanges).length ? { marketAssumptions: marketChanges } : {}),
+        ...(Object.keys(finChanges).length ? { financialAssumptions: finChanges } : {}),
+      });
+
+      // Clear pending changes
+      pendingAssumptionChanges.current = {};
+    } catch {
+      // If assumption save fails, try raw recompute
+      underwrite.mutate();
+    }
+  }, [dealId, underwrite]);
 
   useEffect(() => {
     if (underwrite.isError) {
@@ -163,7 +212,12 @@ export default function DealDashboardPage() {
                 )}
               </div>
               <div className="mt-4">
-                <PartnerWalkthrough data={data} onNavigateTab={(tabKey) => setTab(tabKey as TabKey)} />
+                <PartnerWalkthrough
+                  data={data}
+                  onNavigateTab={(tabKey) => setTab(tabKey as TabKey)}
+                  onChangeAssumption={handleDemoChangeAssumption}
+                  onTriggerRecompute={handleDemoRecompute}
+                />
               </div>
             </div>
 

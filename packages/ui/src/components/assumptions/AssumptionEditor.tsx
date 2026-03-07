@@ -82,6 +82,38 @@ export function AssumptionEditor({ dealId }: { dealId: string }) {
     api.get<any>(`/deals/${dealId}`).then((d) => setDeal(normalizeDealFromServer(d)));
   }, [dealId]);
 
+  // Listen for CFO demo assumption changes (dispatched from PartnerWalkthrough)
+  useEffect(() => {
+    function handleDemoChange(e: Event) {
+      const { field, value } = (e as CustomEvent).detail;
+      const marketFields = ['adrBase', 'adrStabilized', 'adrGrowthRate'];
+      if (marketFields.includes(field)) {
+        setDeal((d: any) => {
+          if (!d) return d;
+          const market = d.marketAssumptions ?? d.market_assumptions ?? {};
+          return {
+            ...d,
+            marketAssumptions: { ...market, [field]: value },
+            market_assumptions: { ...market, [field]: value },
+          };
+        });
+      } else {
+        setDeal((d: any) => {
+          if (!d) return d;
+          const financial = d.financialAssumptions ?? d.financial_assumptions ?? {};
+          return {
+            ...d,
+            financialAssumptions: { ...financial, [field]: value },
+            financial_assumptions: { ...financial, [field]: value },
+          };
+        });
+      }
+      setDirty(true);
+    }
+    window.addEventListener('cfo-demo-change', handleDemoChange);
+    return () => window.removeEventListener('cfo-demo-change', handleDemoChange);
+  }, []);
+
   function normalizeDealFromServer(d: any) {
     if (!d) return d;
     const market = d.marketAssumptions ?? d.market_assumptions ?? {};

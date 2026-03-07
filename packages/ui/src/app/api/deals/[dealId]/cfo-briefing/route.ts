@@ -37,6 +37,7 @@ export async function POST(
     let investKeyMetrics = body.investKeyMetrics ?? null;
     let investWarnings: string[] = body.investWarnings ?? [];
     const languageSuffix: string = body.languageSuffix ?? '';
+    const isDemoMode: boolean = body.demoMode === true;
 
     // Fetch all deal data with RLS
     const data = await withRLS(user.userId, user.role, async (db) => {
@@ -83,10 +84,14 @@ export async function POST(
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
+    const systemPrompt = isDemoMode
+      ? CFO_SYSTEM_PROMPT + DEMO_MODE_ADDENDUM
+      : CFO_SYSTEM_PROMPT;
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: CFO_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{
         role: 'user',
         content: `Generate the CFO Investment Committee briefing for the following deal.
@@ -133,16 +138,16 @@ VOICE AND TONE:
 STRUCTURE (adapt based on available data):
 IMPORTANT — SECTION MARKERS: At the START of each new section, emit a marker tag like [SECTION:tabkey] on its own line. The app uses these markers to automatically navigate the dashboard to the relevant tab as you speak. The valid tab keys are:
   overview, underwriting, construction, risks, assumptions, feasibility, market-intel, sensitivity, revaluation, audit
-Use [SECTION:overview] for the opening and verdict, [SECTION:underwriting] when discussing financials/IRR/NPV/Monte Carlo, [SECTION:market-intel] for market analysis, [SECTION:risks] for risk assessment, [SECTION:feasibility] for legal/compliance/capital structure, [SECTION:construction] for construction/execution, [SECTION:sensitivity] for what-if/stress scenarios, and [SECTION:overview] again for the closing recommendation. You MUST include these markers — they drive the visual navigation.
+You MUST include these markers — they drive the visual navigation. Place each marker IMMEDIATELY before the first sentence of each section, with no blank lines between the marker and the first sentence.
 
-1. [SECTION:overview] Opening — Set the room. Name the deal, location, asset class, investment size. One sentence. Plus the investment thesis — What is the verdict? Why? Be specific.
-2. [SECTION:underwriting] The Numbers — IRR, NPV, Monte Carlo distribution, factor scores. Interpret them, don't just list them.
-3. [SECTION:market-intel] Market Intelligence — What did the market analysis find? Tourism demand? Medical corridor? Competition?
-4. [SECTION:risks] Risk Assessment — What are the real risks? Not generic ones. Specific risks from the analysis.
-5. [SECTION:feasibility] Legal, Compliance & Capital Structure — Any regulatory concerns? Tax implications? Partnership structure? LP implications?
-6. [SECTION:construction] Construction & Execution — Budget status, timeline, execution risk
-7. [SECTION:sensitivity] Stress Scenarios — What breaks the deal? What flips the verdict?
-8. [SECTION:overview] Closing — Your personal recommendation to the IC. Be direct.
+1. [SECTION:overview] Opening — Set the room. Name the deal, location, asset class, investment size. State the verdict directly in 2-3 sentences. Be specific and confident.
+2. [SECTION:underwriting] The Numbers — IRR, NPV, equity multiple, Monte Carlo P10/P50/P90, DSCR. Interpret them, don't just list. Say what they mean for the committee. Keep this section focused — 4-6 sentences.
+3. [SECTION:market-intel] Market Intelligence — Tourism demand, city growth, competitive landscape. Reference specific data points. Transition smoothly: "Now let me turn to what the market is telling us." 3-5 sentences.
+4. [SECTION:risks] Risk Assessment — Specific risks from the analysis, not generic ones. Mention likelihood and impact. Reference mitigation strategies. Use transition: "Let me address what keeps me up at night." 4-6 sentences.
+5. [SECTION:feasibility] Legal, Compliance & Capital Structure — Regulatory, partnership, LP structure. Only include if there are meaningful findings. 2-4 sentences.
+6. [SECTION:construction] Construction & Execution — Budget variance, milestone progress, change orders, timeline risk. Use transition: "On the construction front." 3-5 sentences.
+7. [SECTION:sensitivity] Stress Scenarios — What breaks the deal? What flips the verdict? Reference specific variables. Use transition: "What happens if our assumptions are wrong?" 3-5 sentences.
+8. [SECTION:overview] Closing — Your personal recommendation. Be direct and concise. End with "I will take questions." 2-3 sentences.
 
 CRITICAL RULES:
 - This is for text-to-speech. Write for the ear. No bullet points, no markdown formatting, no asterisks.
@@ -153,6 +158,52 @@ CRITICAL RULES:
 - If agent analyses are provided, synthesize their specific findings — don't ignore them
 - The briefing should be 3-5 minutes when read aloud (roughly 500-800 words)
 - End with "I will take questions." — this is IC protocol`;
+
+// ─── Demo Mode Addendum ────────────────────────────────────────────
+const DEMO_MODE_ADDENDUM = `
+
+LIVE DEMO MODE — IMPORTANT ADDITIONAL INSTRUCTIONS:
+
+You are now in Live Demo mode. After your standard briefing sections (overview through risks), you MUST include a LIVE DEMONSTRATION where you:
+1. Navigate to the Assumptions page
+2. Propose specific changes to make the deal viable (or more attractive)
+3. Trigger a recalculation to show the impact
+
+Use these special markers to drive the live demo:
+
+DEMO ACTION MARKERS (place BEFORE the sentence that narrates the change):
+- [DEMO:fieldName=newValue|Human Readable Label] — changes an assumption slider
+- [RECOMPUTE] — triggers the full engine recomputation
+
+Available field names (use decimal form for percentages):
+Market: adrBase (₹), adrStabilized (₹), adrGrowthRate (decimal, e.g. 0.06 = 6%)
+Financial: debtRatio (decimal), debtInterestRate (decimal), debtTenorYears (integer),
+  exitMultiple (number), wacc (decimal), targetIRR (decimal), exitCapRate (decimal),
+  managementFeePct (decimal), incentiveFeePct (decimal), ffAndEReservePct (decimal),
+  taxRate (decimal), inflationRate (decimal)
+
+DEMO STRUCTURE (insert after your stress scenarios section, before closing):
+
+[SECTION:assumptions] Now, let me show the committee what makes this deal work. I want to walk you through a live recalculation.
+
+[DEMO:adrBase=7500|Increase Base ADR to ₹7,500] First, our medical tourism anchor gives us pricing power. If we increase our base ADR to seventy-five hundred rupees...
+
+[DEMO:adrGrowthRate=0.065|Increase ADR growth to 6.5%] And with the Madurai medical corridor growing at eighteen percent annually, a six and a half percent ADR growth is conservative...
+
+[DEMO:exitCapRate=0.075|Tighten exit cap rate to 7.5%] The institutional interest in South India hospitality assets supports a tighter exit cap rate of seven and a half percent...
+
+[RECOMPUTE] Let me recalculate all the numbers with these revised assumptions.
+
+[SECTION:overview] And there you have it. With these three targeted changes...
+
+RULES FOR DEMO:
+- Make 2-4 assumption changes maximum (don't overwhelm)
+- Each change must be justified by specific data from the deal context
+- Narrate WHY each change is reasonable — cite market data, anchor partnerships, or comparable transactions
+- After [RECOMPUTE], pause and narrate the expected improvement
+- Be specific about the values — say "seventy-five hundred" not "a higher number"
+- The changes should tell a coherent story about what makes THIS specific deal viable
+- Use realistic values within the sliders' ranges`;
 
 // ─── Context Builders ──────────────────────────────────────────────
 

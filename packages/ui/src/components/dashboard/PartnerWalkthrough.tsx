@@ -9,6 +9,9 @@
  * Features:
  * - Natural sentence-by-sentence TTS with pauses between sentences
  * - Language selection: English (Indian), Tamil, Hindi
+ * - Auto-navigation: [SECTION:tabkey] markers drive dashboard tab switches
+ * - Live Demo mode: [DEMO:action] markers trigger real-time assumption changes
+ *   and recomputation to show what makes the deal viable
  * - Adjustable speech rate
  * - Play/Pause/Stop/Regenerate controls
  */
@@ -29,9 +32,7 @@ const LANGUAGE_CONFIG: Record<Language, { label: string; flag: string; voiceLang
 
 // Sentence splitting for natural pauses
 function splitIntoSentences(text: string): string[] {
-  // Split on sentence-ending punctuation followed by space or newline
   const raw = text.split(/(?<=[.!?।])\s+/);
-  // Merge very short fragments back into previous sentence
   const merged: string[] = [];
   for (const s of raw) {
     const trimmed = s.trim();
@@ -48,40 +49,86 @@ function splitIntoSentences(text: string): string[] {
 // Section marker parsing for visual navigation
 type TabKey = 'overview' | 'underwriting' | 'construction' | 'risks' | 'assumptions' | 'feasibility' | 'market-intel' | 'sensitivity' | 'revaluation' | 'audit';
 
+/** A demo action the CFO can trigger during the walkthrough */
+interface DemoAction {
+  type: 'change-assumption';
+  field: string;       // e.g. 'adrBase', 'exitCapRate'
+  value: number;       // new value
+  label: string;       // human readable description
+}
+
 interface ParsedSentence {
   text: string;
   tabKey?: TabKey;
+  demoAction?: DemoAction;
+  isRecompute?: boolean;  // trigger recompute after assumption changes
 }
 
 /**
- * Parse narrative into sentences, extracting [SECTION:xxx] markers.
- * Each sentence carries the tab it belongs to (inherited from the last marker).
+ * Parse narrative into sentences, extracting [SECTION:xxx] and [DEMO:...] markers.
+ * Each sentence carries the tab it belongs to and optional demo actions.
  */
 function parseNarrativeWithSections(text: string): ParsedSentence[] {
-  // First, split by section markers to get sections
-  const parts = text.split(/\[SECTION:([\w-]+)\]/);
-  // parts alternates: text, tabKey, text, tabKey, text ...
+  // Split by section markers AND demo markers
+  const parts = text.split(/(\[SECTION:[\w-]+\]|\[DEMO:[^\]]+\]|\[RECOMPUTE\])/);
   const parsed: ParsedSentence[] = [];
   let currentTab: TabKey | undefined;
+  let pendingDemo: DemoAction | undefined;
+  let pendingRecompute = false;
 
   for (let i = 0; i < parts.length; i++) {
-    if (i % 2 === 1) {
-      // This is a tab key
-      currentTab = parts[i].trim() as TabKey;
+    const part = parts[i];
+
+    // Section marker
+    const sectionMatch = part.match(/\[SECTION:([\w-]+)\]/);
+    if (sectionMatch) {
+      currentTab = sectionMatch[1].trim() as TabKey;
       continue;
     }
-    // This is text content — split into sentences
-    const sentences = splitIntoSentences(parts[i]);
+
+    // Demo action marker: [DEMO:field=value|label]
+    const demoMatch = part.match(/\[DEMO:([\w.]+)=([\d.]+)\|([^\]]+)\]/);
+    if (demoMatch) {
+      pendingDemo = {
+        type: 'change-assumption',
+        field: demoMatch[1],
+        value: parseFloat(demoMatch[2]),
+        label: demoMatch[3],
+      };
+      continue;
+    }
+
+    // Recompute marker
+    if (part.trim() === '[RECOMPUTE]') {
+      pendingRecompute = true;
+      continue;
+    }
+
+    // Text content — split into sentences
+    const sentences = splitIntoSentences(part);
     for (const s of sentences) {
-      parsed.push({ text: s, tabKey: currentTab });
+      const sentence: ParsedSentence = { text: s, tabKey: currentTab };
+      if (pendingDemo) {
+        sentence.demoAction = pendingDemo;
+        pendingDemo = undefined;
+      }
+      if (pendingRecompute) {
+        sentence.isRecompute = true;
+        pendingRecompute = false;
+      }
+      parsed.push(sentence);
     }
   }
   return parsed;
 }
 
-/** Strip section markers from text for display/TTS */
+/** Strip section/demo markers from text for display/TTS */
 function stripSectionMarkers(text: string): string {
-  return text.replace(/\[SECTION:[\w-]+\]\s*/g, '').trim();
+  return text
+    .replace(/\[SECTION:[\w-]+\]\s*/g, '')
+    .replace(/\[DEMO:[^\]]+\]\s*/g, '')
+    .replace(/\[RECOMPUTE\]\s*/g, '')
+    .trim();
 }
 
 /** Human-readable labels for each tab section shown in progress indicator */
@@ -104,9 +151,13 @@ export interface PartnerWalkthroughProps {
   compact?: boolean;
   /** Called when the CFO briefing wants to navigate to a dashboard tab */
   onNavigateTab?: (tabKey: string) => void;
+  /** Called when the CFO demo wants to change an assumption value */
+  onChangeAssumption?: (field: string, value: number) => void;
+  /** Called when the CFO demo wants to trigger recomputation */
+  onTriggerRecompute?: () => Promise<void>;
 }
 
-export function PartnerWalkthrough({ data, className = '', compact = false, onNavigateTab }: PartnerWalkthroughProps) {
+export function PartnerWalkthrough({ data, className = '', compact = false, onNavigateTab, onChangeAssumption, onTriggerRecompute }: PartnerWalkthroughProps) {
   const [playing, setPlaying] = useState(false);
   const [showScript, setShowScript] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -117,6 +168,8 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [currentSentence, setCurrentSentence] = useState(-1);
   const [currentSection, setCurrentSection] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoStatus, setDemoStatus] = useState<string | null>(null);
   const sentenceQueueRef = useRef<ParsedSentence[]>([]);
   const sentenceIndexRef = useRef(0);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -146,17 +199,56 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
     setPaused(false);
     setCurrentSentence(-1);
     setCurrentSection(null);
+    setDemoStatus(null);
     sentenceIndexRef.current = 0;
     lastNavigatedTabRef.current = null;
   }, []);
 
-  // Speak sentence by sentence with natural pauses and tab navigation
-  const speakSentence = useCallback((sentences: ParsedSentence[], index: number) => {
+  // Execute a demo action (change assumption, highlight it visually)
+  const executeDemoAction = useCallback(async (action: DemoAction): Promise<void> => {
+    setDemoStatus(`Changing ${action.label}...`);
+    // Navigate to assumptions tab to show the change
+    onNavigateTab?.('assumptions');
+    lastNavigatedTabRef.current = 'assumptions';
+    setCurrentSection('assumptions');
+
+    // Small delay so the tab renders
+    await new Promise(r => setTimeout(r, 600));
+
+    // Dispatch the assumption change
+    onChangeAssumption?.(action.field, action.value);
+
+    // Brief pause so the user sees the slider move
+    await new Promise(r => setTimeout(r, 800));
+    setDemoStatus(null);
+  }, [onNavigateTab, onChangeAssumption]);
+
+  // Execute recompute
+  const executeRecompute = useCallback(async (): Promise<void> => {
+    setDemoStatus('Recalculating all engines...');
+    try {
+      await onTriggerRecompute?.();
+    } catch {
+      // Continue even if recompute fails
+    }
+    // Navigate to overview to show updated numbers
+    await new Promise(r => setTimeout(r, 1500));
+    onNavigateTab?.('overview');
+    lastNavigatedTabRef.current = 'overview';
+    setCurrentSection('overview');
+    setDemoStatus(null);
+    // Extra pause to let dashboard update
+    await new Promise(r => setTimeout(r, 1000));
+  }, [onNavigateTab, onTriggerRecompute]);
+
+  // Speak sentence by sentence with natural pauses, tab navigation, and demo actions
+  const speakSentence = useCallback(async (sentences: ParsedSentence[], index: number) => {
     if (isStoppedRef.current || index >= sentences.length) {
       setPlaying(false);
       setPaused(false);
       setCurrentSentence(-1);
       setCurrentSection(null);
+      setDemoStatus(null);
       lastNavigatedTabRef.current = null;
       return;
     }
@@ -166,6 +258,18 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
     const parsed = sentences[index];
     setCurrentSentence(index);
     sentenceIndexRef.current = index;
+
+    // Execute demo action BEFORE speaking the sentence
+    if (parsed.demoAction) {
+      await executeDemoAction(parsed.demoAction);
+      if (isStoppedRef.current) return;
+    }
+
+    // Trigger recompute if marked
+    if (parsed.isRecompute) {
+      await executeRecompute();
+      if (isStoppedRef.current) return;
+    }
 
     // Navigate to the tab if this sentence starts a new section
     if (parsed.tabKey && parsed.tabKey !== lastNavigatedTabRef.current) {
@@ -185,9 +289,9 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
     const u = new SpeechSynthesisUtterance(parsed.text);
     const langCfg = LANGUAGE_CONFIG[language];
 
-    // Natural CFO voice settings — slower, deeper, more authoritative
-    u.rate = 0.88;   // Slightly slower than normal for gravitas
-    u.pitch = 0.92;  // Slightly lower pitch for authority
+    // Natural CFO voice settings
+    u.rate = 0.88;
+    u.pitch = 0.92;
     u.volume = 1;
     u.lang = langCfg.voiceLang;
 
@@ -203,12 +307,13 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
 
     u.onend = () => {
       if (isStoppedRef.current) return;
-      // Add a natural pause between sentences (300-600ms depending on punctuation)
-      // Longer pause (800ms) when transitioning between sections
+      // Natural pause between sentences
       const nextParsed = index + 1 < sentences.length ? sentences[index + 1] : null;
       const isSectionTransition = nextParsed?.tabKey && nextParsed.tabKey !== parsed.tabKey;
+      const isDemoTransition = !!nextParsed?.demoAction || !!nextParsed?.isRecompute;
       const basePause = parsed.text.endsWith('?') ? 500 : parsed.text.endsWith('!') ? 450 : 350;
-      const pauseMs = isSectionTransition ? 800 : basePause;
+      // Longer pauses for transitions
+      const pauseMs = isDemoTransition ? 1200 : isSectionTransition ? 900 : basePause;
       setTimeout(() => {
         if (!isStoppedRef.current) {
           speakSentence(sentences, index + 1);
@@ -223,7 +328,7 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
 
     utteranceRef.current = u;
     window.speechSynthesis.speak(u);
-  }, [language, onNavigateTab]);
+  }, [language, onNavigateTab, executeDemoAction, executeRecompute]);
 
   const speakNarrative = useCallback((text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -290,6 +395,7 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
         investKeyMetrics,
         investWarnings,
         languageSuffix: langCfg.promptSuffix,
+        demoMode,
       });
 
       setNarrative(result.narrative);
@@ -300,7 +406,7 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
       const message = err instanceof Error ? err.message : 'Failed to generate CFO briefing';
       setError(message);
     }
-  }, [dealId, data, narrative, language, speakNarrative]);
+  }, [dealId, data, narrative, language, demoMode, speakNarrative]);
 
   const play = useCallback(() => {
     if (loading) return;
@@ -327,8 +433,13 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
     setLanguage(lang);
     setShowLangMenu(false);
     stop();
-    setNarrative(null); // Clear cached narrative so it regenerates in new language
+    setNarrative(null);
   }, [stop]);
+
+  const toggleDemoMode = useCallback(() => {
+    setDemoMode(d => !d);
+    setNarrative(null); // Clear cached narrative to regenerate with/without demo
+  }, []);
 
   // Clear narrative cache when deal changes
   useEffect(() => {
@@ -416,6 +527,21 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
           </button>
         )}
 
+        {/* Demo Mode Toggle */}
+        <button
+          type="button"
+          onClick={toggleDemoMode}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1 ${
+            demoMode
+              ? 'border-violet-300 bg-violet-50 text-violet-800'
+              : 'border-surface-200 bg-white text-surface-600 hover:bg-surface-50'
+          }`}
+          title={demoMode ? 'Live Demo ON — CFO will change assumptions and recalculate' : 'Enable Live Demo — CFO shows what makes the deal viable'}
+        >
+          <DemoIcon className="w-4 h-4" />
+          <span className="text-xs">{demoMode ? 'Demo ON' : 'Live Demo'}</span>
+        </button>
+
         {/* Language Selector */}
         <div className="relative" ref={langMenuRef}>
           <button
@@ -481,23 +607,40 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
         )}
       </div>
 
-      {/* Progress indicator with section label */}
+      {/* Demo mode indicator */}
+      {demoMode && !playing && (
+        <div className="mt-2 rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2">
+          <p className="text-xs text-violet-700">
+            <strong>Live Demo mode</strong> — The CFO will navigate to Assumptions, adjust key values, trigger recalculation, and show the committee what makes this deal viable.
+          </p>
+        </div>
+      )}
+
+      {/* Progress indicator with section label and demo status */}
       {playing && sentenceQueueRef.current.length > 0 && (
-        <div className="mt-2 flex items-center gap-2">
-          {currentSection && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 font-semibold uppercase tracking-wider whitespace-nowrap animate-pulse">
-              {SECTION_LABELS[currentSection as TabKey] ?? currentSection}
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center gap-2">
+            {currentSection && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-700 font-semibold uppercase tracking-wider whitespace-nowrap animate-pulse">
+                {SECTION_LABELS[currentSection as TabKey] ?? currentSection}
+              </span>
+            )}
+            <div className="flex-1 h-1.5 bg-surface-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-500 rounded-full transition-all duration-500"
+                style={{ width: `${((currentSentence + 1) / sentenceQueueRef.current.length) * 100}%` }}
+              />
+            </div>
+            <span className="text-2xs text-surface-400 font-mono">
+              {currentSentence + 1}/{sentenceQueueRef.current.length}
             </span>
-          )}
-          <div className="flex-1 h-1.5 bg-surface-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-brand-500 rounded-full transition-all duration-500"
-              style={{ width: `${((currentSentence + 1) / sentenceQueueRef.current.length) * 100}%` }}
-            />
           </div>
-          <span className="text-2xs text-surface-400 font-mono">
-            {currentSentence + 1}/{sentenceQueueRef.current.length}
-          </span>
+          {demoStatus && (
+            <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-violet-50 border border-violet-200">
+              <SpinnerIcon className="w-3 h-3 text-violet-500 animate-spin" />
+              <span className="text-xs text-violet-700 font-medium">{demoStatus}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -513,6 +656,7 @@ export function PartnerWalkthrough({ data, className = '', compact = false, onNa
             <span className="text-xs font-semibold text-surface-500 uppercase tracking-wide">AI CFO Investment Committee briefing</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700 font-medium">AI Generated</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-surface-100 text-surface-600 font-medium">{langCfg.label}</span>
+            {demoMode && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 font-medium">Live Demo</span>}
           </div>
           <p className="text-sm text-surface-800 leading-relaxed whitespace-pre-wrap">{stripSectionMarkers(narrative)}</p>
         </div>
@@ -571,6 +715,15 @@ function RefreshIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  );
+}
+
+function DemoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18l-2-2m0 0l2-2m-2 2h4" />
     </svg>
   );
 }

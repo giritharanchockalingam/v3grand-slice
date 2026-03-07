@@ -111,7 +111,8 @@ function formatLargeNumber(n: number | null | undefined): string {
 
 function pct(v: number | null | undefined, decimals = 1): string {
   if (v == null || !Number.isFinite(v)) return '—';
-  return (v * 100).toFixed(decimals) + '%';
+  // API returns values already in percentage form (e.g. 6.50 = 6.50%)
+  return v.toFixed(decimals) + '%';
 }
 
 function timeAgo(iso: string): string {
