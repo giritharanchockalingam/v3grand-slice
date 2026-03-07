@@ -744,6 +744,25 @@ export async function POST(request: Request) {
       console.error('Failed to persist invest analysis (non-fatal):', persistErr);
     }
 
+    // Persist recommendation so the deal dashboard shows it immediately
+    try {
+      const { insertRecommendation } = await import('@v3grand/db');
+      await insertRecommendation(db, {
+        dealId: deal.id,
+        scenarioKey: 'base',
+        verdict: synthesis.verdict,
+        confidence: synthesis.confidence,
+        triggerEvent: 'invest.analyze',
+        proformaSnapshot: synthesis.keyMetrics,
+        gateResults: { warnings: synthesis.warnings },
+        explanation: synthesis.summary,
+        previousVerdict: null,
+        isFlip: false,
+      });
+    } catch (recErr) {
+      console.error('Failed to persist recommendation (non-fatal):', recErr);
+    }
+
     return NextResponse.json(response);
   } catch (err) {
     console.error('POST /api/invest/analyze failed:', err);
